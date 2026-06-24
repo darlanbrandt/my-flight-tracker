@@ -5,8 +5,27 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
+export type Airline     = 'Arajet' | 'Avianca' | 'American'
 export type Origin      = 'GRU' | 'GIG'
-export type Destination = 'EWR' | 'JFK' | 'IAD'
+export type Destination = 'EWR' | 'JFK' | 'IAD' | 'MIA' | 'DFW'
+
+export const AIRLINE_COLORS: Record<Airline, string> = {
+  Arajet:   '#e8433a',
+  Avianca:  '#f5a623',
+  American: '#2f7fd1',
+}
+
+export const AIRLINE_DIM_DARK: Record<Airline, string> = {
+  Arajet:   '#3a1714',
+  Avianca:  '#3a2a0c',
+  American: '#142536',
+}
+
+export const AIRLINE_DIM_LIGHT: Record<Airline, string> = {
+  Arajet:   '#fdecea',
+  Avianca:  '#fdf3e0',
+  American: '#e7f0fb',
+}
 
 export const ORIGINS: Record<Origin, string> = {
   GRU: 'São Paulo - Guarulhos',
@@ -17,18 +36,20 @@ export const DESTINATIONS: Record<Destination, string> = {
   EWR: 'New York - Newark',
   JFK: 'New York - JFK',
   IAD: 'Washington DC - Dulles',
+  MIA: 'Miami',
+  DFW: 'Dallas - Fort Worth',
 }
 
-// JFK não opera na Arajet
-export const DESTINATIONS_BY_AIRLINE: Record<'Arajet' | 'Avianca', Destination[]> = {
-  Arajet:  ['EWR', 'IAD'],
-  Avianca: ['EWR', 'JFK', 'IAD'],
+export const DESTINATIONS_BY_AIRLINE: Record<Airline, Destination[]> = {
+  Arajet:   ['EWR', 'IAD'],
+  Avianca:  ['EWR', 'JFK', 'IAD'],
+  American: ['EWR', 'MIA', 'JFK', 'DFW'],
 }
 
 export type FlightPrice = {
   id: string
   date: string
-  airline: 'Arajet' | 'Avianca'
+  airline: Airline
   origin: Origin
   destination: Destination
   price_out: number
@@ -40,7 +61,7 @@ export type FlightPrice = {
 
 export type FlightPriceInsert = {
   date: string
-  airline: 'Arajet' | 'Avianca'
+  airline: Airline
   origin: Origin
   destination: Destination
   price_out: number

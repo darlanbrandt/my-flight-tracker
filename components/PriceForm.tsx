@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import {
   supabase, FlightPrice, FlightPriceInsert,
-  Origin, Destination, ORIGINS, DESTINATIONS, DESTINATIONS_BY_AIRLINE,
+  Airline, Origin, Destination,
+  ORIGINS, DESTINATIONS, DESTINATIONS_BY_AIRLINE,
 } from '@/lib/supabase'
 
 type Props = {
@@ -27,7 +28,6 @@ function todayBR(): string {
 }
 
 function parseBRL(raw: string): number {
-  // accept "1.540,23" or "1540.23" or "1540,23"
   const clean = raw.trim().replace(/\./g, '').replace(',', '.')
   return parseFloat(clean)
 }
@@ -38,7 +38,7 @@ function formatBRLInput(v: number): string {
 
 export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
   const [date, setDate]           = useState(todayBR)
-  const [airline, setAirline]     = useState<'Arajet' | 'Avianca'>('Arajet')
+  const [airline, setAirline]     = useState<Airline>('Arajet')
   const [origin, setOrigin]       = useState<Origin>('GRU')
   const [destination, setDest]    = useState<Destination>('EWR')
   const [priceOut, setPriceOut]   = useState('')
@@ -49,7 +49,6 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
 
   const availableDests = DESTINATIONS_BY_AIRLINE[airline]
 
-  // if current destination not valid for airline, reset to first available
   useEffect(() => {
     if (!availableDests.includes(destination)) {
       setDest(availableDests[0])
@@ -82,9 +81,8 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
 
     const out  = parseBRL(priceOut)
     const back = parseBRL(priceBack)
-    const dateISO = brToISO(date)
 
-    if (!date || !/^\d{2}\/\d{2}\/\d{4}$/.test(date) || isNaN(out) || isNaN(back)) {
+    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(date) || isNaN(out) || isNaN(back)) {
       setError('Preencha data (DD/MM/AAAA) e valores válidos.')
       return
     }
@@ -92,7 +90,7 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
     setLoading(true)
 
     const payload: FlightPriceInsert = {
-      date: dateISO,
+      date: brToISO(date),
       airline,
       origin,
       destination,
@@ -113,10 +111,7 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
 
     setLoading(false)
 
-    if (err) {
-      setError(err.message)
-      return
-    }
+    if (err) { setError(err.message); return }
 
     if (!editing) {
       setPriceOut('')
@@ -130,17 +125,30 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
   }
 
   const isEdit = !!editing
+  const dotColor = isEdit ? '#f5a623' : 'var(--primary)'
+  const dotHalo  = isEdit ? 'rgba(245,166,35,.18)' : 'rgba(232,67,58,.18)'
 
   return (
-    <form onSubmit={handleSubmit} style={styles.form}>
-      <div style={styles.title}>
-        {isEdit ? '✏️ Editar registro' : '+ Novo registro'}
+    <form onSubmit={handleSubmit} style={styles.card}>
+      {/* header */}
+      <div style={styles.cardHeader}>
+        <span style={{
+          width: 8, height: 8, borderRadius: '50%',
+          background: dotColor,
+          boxShadow: `0 0 0 4px ${dotHalo}`,
+          flexShrink: 0,
+        }} />
+        <span style={styles.cardTitle}>
+          {isEdit ? 'Editar registro' : 'Novo registro'}
+        </span>
       </div>
 
+      {/* fields */}
       <div style={styles.grid}>
         <label style={styles.label}>
           Data
           <input
+            className="mono-input"
             type="text"
             placeholder="DD/MM/AAAA"
             value={date}
@@ -152,9 +160,10 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
 
         <label style={styles.label}>
           Companhia
-          <select value={airline} onChange={e => setAirline(e.target.value as any)}>
+          <select value={airline} onChange={e => setAirline(e.target.value as Airline)}>
             <option value="Arajet">Arajet</option>
             <option value="Avianca">Avianca</option>
+            <option value="American">American Airlines</option>
           </select>
         </label>
 
@@ -162,7 +171,7 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
           Origem
           <select value={origin} onChange={e => setOrigin(e.target.value as Origin)}>
             {(Object.keys(ORIGINS) as Origin[]).map(code => (
-              <option key={code} value={code}>{code} — {ORIGINS[code]}</option>
+              <option key={code} value={code}>{code} — {ORIGINS[code].split(' - ')[0]}</option>
             ))}
           </select>
         </label>
@@ -179,6 +188,7 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
         <label style={styles.label}>
           Ida (R$)
           <input
+            className="mono-input"
             type="text"
             placeholder="1.540,23"
             value={priceOut}
@@ -190,6 +200,7 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
         <label style={styles.label}>
           Volta (R$)
           <input
+            className="mono-input"
             type="text"
             placeholder="1.879,85"
             value={priceBack}
@@ -217,8 +228,9 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
             Cancelar
           </button>
         )}
-        <button type="submit" className="btn-primary" disabled={loading}>
-          {loading ? 'Salvando...' : isEdit ? 'Salvar alterações' : 'Adicionar'}
+        <button type="submit" className="btn-primary" disabled={loading}
+          style={{ padding: '10px 22px' }}>
+          {loading ? 'Salvando...' : isEdit ? 'Salvar alterações' : 'Adicionar registro'}
         </button>
       </div>
     </form>
@@ -226,25 +238,31 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  form: {
+  card: {
     background: 'var(--surface)',
     border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-lg)',
-    padding: '20px 24px',
+    borderRadius: 18,
+    padding: 22,
+    boxShadow: 'var(--shadow)',
     display: 'flex',
     flexDirection: 'column',
     gap: 16,
+    flex: 1,
   },
-  title: {
-    fontSize: 13,
+  cardHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+  },
+  cardTitle: {
+    fontFamily: 'Space Grotesk, sans-serif',
+    fontSize: 15,
     fontWeight: 600,
-    color: 'var(--text-2)',
-    letterSpacing: '0.04em',
-    textTransform: 'uppercase',
+    color: 'var(--text)',
   },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+    gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)',
     gap: 12,
   },
   label: {
@@ -252,16 +270,18 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: 5,
     fontSize: 12,
-    color: 'var(--text-2)',
-    fontWeight: 500,
+    fontWeight: 600,
+    color: 'var(--text2)',
+    minWidth: 0,
   },
   actions: {
     display: 'flex',
-    gap: 8,
+    gap: 9,
     justifyContent: 'flex-end',
+    marginTop: 'auto',
   },
   error: {
     color: 'var(--red)',
-    fontSize: 12,
+    fontSize: 12.5,
   },
 }

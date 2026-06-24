@@ -4,36 +4,46 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
-import { FlightPrice } from '@/lib/supabase'
+import { FlightPrice, Airline, AIRLINE_COLORS } from '@/lib/supabase'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
-type Props = { data: FlightPrice[] }
+type Props = {
+  data: FlightPrice[]
+  routeLabel: string
+  isNarrow: boolean
+}
+
+const AIRLINES: Airline[] = ['Arajet', 'Avianca', 'American']
 
 function formatBRL(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-export default function PriceChart({ data }: Props) {
+export default function PriceChart({ data, routeLabel, isNarrow }: Props) {
   if (data.length === 0) {
     return (
-      <div style={styles.empty}>
-        Nenhum dado para exibir ainda. Adicione registros acima.
+      <div style={styles.card}>
+        <p style={styles.empty}>Sem dados para esta rota.</p>
       </div>
     )
   }
 
-  // Build chart data: one entry per date, columns for each airline
-  const byDate: Record<string, { date: string; Arajet?: number; Avianca?: number }> = {}
-
+  // group by date; use minimum total when same airline appears multiple times in same date
+  const byDate: Record<string, Record<string, number>> = {}
   for (const row of data) {
-    if (!byDate[row.date]) byDate[row.date] = { date: row.date }
-    byDate[row.date][row.airline] = row.total
+    if (!byDate[row.date]) byDate[row.date] = {}
+    const prev = byDate[row.date][row.airline]
+    if (prev === undefined || row.total < prev) {
+      byDate[row.date][row.airline] = row.total
+    }
   }
 
-  const chartData = Object.values(byDate).sort((a, b) =>
-    a.date.localeCompare(b.date)
-  )
+  const chartData = Object.entries(byDate)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, vals]) => ({ date, ...vals }))
+
+  const maxTicks = isNarrow ? 5 : undefined
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null
@@ -43,7 +53,7 @@ export default function PriceChart({ data }: Props) {
           {format(parseISO(label), "dd 'de' MMM", { locale: ptBR })}
         </p>
         {payload.map((p: any) => (
-          <p key={p.name} style={{ color: p.color, margin: '2px 0' }}>
+          <p key={p.name} style={{ color: p.color, margin: '2px 0', fontSize: 12 }}>
             <span style={{ fontWeight: 600 }}>{p.name}:</span>{' '}
             {formatBRL(p.value)}
           </p>
@@ -53,46 +63,61 @@ export default function PriceChart({ data }: Props) {
   }
 
   return (
-    <div style={styles.wrapper}>
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={chartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+    <div style={styles.card}>
+      {/* header */}
+      <div style={styles.cardHeader}>
+        <div>
+          <p style={styles.cardTitle}>Variação de preço total</p>
+          <p style={styles.cardSub}>{routeLabel} · ida + volta</p>
+        </div>
+        <div style={styles.legend}>
+          {AIRLINES.filter(a => data.some(r => r.airline === a)).map(a => (
+            <div key={a} style={styles.legendItem}>
+              <span style={{
+                display: 'inline-block',
+                width: 14, height: 2.5,
+                background: AIRLINE_COLORS[a],
+                borderRadius: 2,
+                flexShrink: 0,
+              }} />
+              <span style={{ fontSize: 12, color: 'var(--text2)' }}>{a}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* chart */}
+      <ResponsiveContainer width="100%" height={isNarrow ? 220 : 260}>
+        <LineChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
           <XAxis
             dataKey="date"
             tickFormatter={d => format(parseISO(d), 'dd/MM')}
-            tick={{ fill: 'var(--text-3)', fontSize: 11 }}
+            tick={{ fill: 'var(--text3)', fontSize: 11 }}
             axisLine={{ stroke: 'var(--border)' }}
             tickLine={false}
+            interval={maxTicks !== undefined ? 'preserveStartEnd' : undefined}
           />
           <YAxis
             tickFormatter={v => `R$${(v / 1000).toFixed(1)}k`}
-            tick={{ fill: 'var(--text-3)', fontSize: 11 }}
+            tick={{ fill: 'var(--text3)', fontSize: 11 }}
             axisLine={false}
             tickLine={false}
-            width={56}
+            width={58}
           />
           <Tooltip content={<CustomTooltip />} />
-          <Legend
-            wrapperStyle={{ fontSize: 12, color: 'var(--text-2)', paddingTop: 12 }}
-          />
-          <Line
-            type="monotone"
-            dataKey="Arajet"
-            stroke="#e8433a"
-            strokeWidth={2}
-            dot={{ r: 3, fill: '#e8433a' }}
-            activeDot={{ r: 5 }}
-            connectNulls
-          />
-          <Line
-            type="monotone"
-            dataKey="Avianca"
-            stroke="#f5a623"
-            strokeWidth={2}
-            dot={{ r: 3, fill: '#f5a623' }}
-            activeDot={{ r: 5 }}
-            connectNulls
-          />
+          {AIRLINES.map(a => (
+            <Line
+              key={a}
+              type="monotone"
+              dataKey={a}
+              stroke={AIRLINE_COLORS[a]}
+              strokeWidth={2.5}
+              dot={{ r: 3.5, fill: AIRLINE_COLORS[a] }}
+              activeDot={{ r: 5 }}
+              connectNulls
+            />
+          ))}
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -100,31 +125,63 @@ export default function PriceChart({ data }: Props) {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  wrapper: {
+  card: {
     background: 'var(--surface)',
     border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-lg)',
-    padding: '20px 16px 8px',
+    borderRadius: 18,
+    padding: '20px 22px',
+    boxShadow: 'var(--shadow)',
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    gap: 16,
+  },
+  cardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  cardTitle: {
+    fontFamily: 'Space Grotesk, sans-serif',
+    fontSize: 15,
+    fontWeight: 600,
+    color: 'var(--text)',
+  },
+  cardSub: {
+    fontSize: 12,
+    color: 'var(--text3)',
+    marginTop: 2,
+  },
+  legend: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '6px 12px',
+    alignItems: 'center',
+  },
+  legendItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 5,
   },
   empty: {
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-lg)',
-    padding: 40,
     textAlign: 'center',
-    color: 'var(--text-3)',
+    color: 'var(--text3)',
     fontSize: 13,
+    padding: '60px 0',
   },
   tooltip: {
-    background: 'var(--surface-2)',
-    border: '1px solid var(--border-2)',
+    background: 'var(--surface2)',
+    border: '1px solid var(--border2)',
     borderRadius: 8,
     padding: '10px 14px',
-    fontSize: 12,
     fontFamily: 'JetBrains Mono, monospace',
+    fontSize: 12,
   },
   tooltipDate: {
-    color: 'var(--text-2)',
+    color: 'var(--text2)',
     fontWeight: 600,
     marginBottom: 4,
     fontSize: 11,
