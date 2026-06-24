@@ -1,7 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase, FlightPrice, FlightPriceInsert } from '@/lib/supabase'
+import {
+  supabase, FlightPrice, FlightPriceInsert,
+  Origin, Destination, ORIGINS, DESTINATIONS, DESTINATIONS_BY_AIRLINE,
+} from '@/lib/supabase'
 
 type Props = {
   onSaved: () => void
@@ -9,13 +12,11 @@ type Props = {
   onCancelEdit: () => void
 }
 
-// Convert YYYY-MM-DD → DD/MM/YYYY
 function isoToBR(iso: string): string {
   const [y, m, d] = iso.split('-')
   return `${d}/${m}/${y}`
 }
 
-// Convert DD/MM/YYYY → YYYY-MM-DD (for Supabase)
 function brToISO(br: string): string {
   const [d, m, y] = br.split('/')
   return `${y}-${m}-${d}`
@@ -25,37 +26,55 @@ function todayBR(): string {
   return isoToBR(new Date().toISOString().split('T')[0])
 }
 
-export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
-  const [date, setDate]         = useState(todayBR)
-  const [airline, setAirline]   = useState<'Arajet' | 'Avianca'>('Arajet')
-  const [priceOut, setPriceOut] = useState('')
-  const [priceBack, setPriceBack] = useState('')
-  const [notes, setNotes]       = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
+function parseBRL(raw: string): number {
+  // accept "1.540,23" or "1540.23" or "1540,23"
+  const clean = raw.trim().replace(/\./g, '').replace(',', '.')
+  return parseFloat(clean)
+}
 
-  // populate form when editing
+function formatBRLInput(v: number): string {
+  return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
+  const [date, setDate]           = useState(todayBR)
+  const [airline, setAirline]     = useState<'Arajet' | 'Avianca'>('Arajet')
+  const [origin, setOrigin]       = useState<Origin>('GRU')
+  const [destination, setDest]    = useState<Destination>('EWR')
+  const [priceOut, setPriceOut]   = useState('')
+  const [priceBack, setPriceBack] = useState('')
+  const [notes, setNotes]         = useState('')
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState('')
+
+  const availableDests = DESTINATIONS_BY_AIRLINE[airline]
+
+  // if current destination not valid for airline, reset to first available
+  useEffect(() => {
+    if (!availableDests.includes(destination)) {
+      setDest(availableDests[0])
+    }
+  }, [airline])
+
   useEffect(() => {
     if (editing) {
       setDate(isoToBR(editing.date))
       setAirline(editing.airline)
-      setPriceOut(String(editing.price_out))
-      setPriceBack(String(editing.price_back))
+      setOrigin(editing.origin)
+      setDest(editing.destination)
+      setPriceOut(formatBRLInput(editing.price_out))
+      setPriceBack(formatBRLInput(editing.price_back))
       setNotes(editing.notes ?? '')
     } else {
       setDate(todayBR())
       setAirline('Arajet')
+      setOrigin('GRU')
+      setDest('EWR')
       setPriceOut('')
       setPriceBack('')
       setNotes('')
     }
   }, [editing])
-
-  function parseBRL(raw: string): number {
-    // accept "1.540,23" or "1540.23" or "1540,23"
-    const clean = raw.trim().replace(/\./g, '').replace(',', '.')
-    return parseFloat(clean)
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -63,8 +82,8 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
 
     const out  = parseBRL(priceOut)
     const back = parseBRL(priceBack)
-
     const dateISO = brToISO(date)
+
     if (!date || !/^\d{2}\/\d{2}\/\d{4}$/.test(date) || isNaN(out) || isNaN(back)) {
       setError('Preencha data (DD/MM/AAAA) e valores válidos.')
       return
@@ -75,6 +94,8 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
     const payload: FlightPriceInsert = {
       date: dateISO,
       airline,
+      origin,
+      destination,
       price_out: out,
       price_back: back,
       notes: notes || undefined,
@@ -134,6 +155,24 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
           <select value={airline} onChange={e => setAirline(e.target.value as any)}>
             <option value="Arajet">Arajet</option>
             <option value="Avianca">Avianca</option>
+          </select>
+        </label>
+
+        <label style={styles.label}>
+          Origem
+          <select value={origin} onChange={e => setOrigin(e.target.value as Origin)}>
+            {(Object.keys(ORIGINS) as Origin[]).map(code => (
+              <option key={code} value={code}>{code} — {ORIGINS[code]}</option>
+            ))}
+          </select>
+        </label>
+
+        <label style={styles.label}>
+          Destino
+          <select value={destination} onChange={e => setDest(e.target.value as Destination)}>
+            {availableDests.map(code => (
+              <option key={code} value={code}>{code} — {DESTINATIONS[code]}</option>
+            ))}
           </select>
         </label>
 
