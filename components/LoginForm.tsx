@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
-export default function LoginForm() {
+export default function LoginForm({ onCancel }: { onCancel?: () => void }) {
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading]   = useState(false)
@@ -59,6 +59,12 @@ export default function LoginForm() {
           style={{ width: '100%', padding: '11px', marginTop: 4 }}>
           {loading ? 'Entrando...' : 'Entrar'}
         </button>
+        {onCancel && (
+          <button type="button" className="btn-ghost" onClick={onCancel}
+            style={{ width: '100%', padding: '11px' }}>
+            Voltar
+          </button>
+        )}
       </form>
     </div>
   )

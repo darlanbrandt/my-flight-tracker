@@ -10,7 +10,8 @@ import StatsBar   from '@/components/StatsBar'
 import LoginForm  from '@/components/LoginForm'
 
 export default function FlightApp() {
-  const [user, setUser]           = useState<User | null | undefined>(undefined) // undefined = loading
+  const [user, setUser]           = useState<User | null | undefined>(undefined)
+  const [showLogin, setShowLogin] = useState(false)
   const [data, setData]           = useState<FlightPrice[]>([])
   const [loading, setLoading]     = useState(true)
   const [editing, setEditing]     = useState<FlightPrice | null>(null)
@@ -19,13 +20,13 @@ export default function FlightApp() {
   const [isNarrow, setIsNarrow]   = useState(false)
   const containerRef              = useRef<HTMLDivElement>(null)
 
-  // auth state
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setUser(session?.user ?? null)
+      if (session?.user) setShowLogin(false)
     })
     return () => subscription.unsubscribe()
   }, [])
@@ -40,9 +41,7 @@ export default function FlightApp() {
     setLoading(false)
   }, [])
 
-  useEffect(() => {
-    if (user) fetchData()
-  }, [user, fetchData])
+  useEffect(() => { fetchData() }, [fetchData])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -58,21 +57,8 @@ export default function FlightApp() {
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  // still resolving session
-  if (user === undefined) {
-    return (
-      <div style={{ minHeight: '100vh', background: 'var(--bg)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: 12, color: 'var(--text3)',
-          fontFamily: 'JetBrains Mono, monospace' }}>carregando...</span>
-      </div>
-    )
-  }
+  const isLoggedIn = !!user
 
-  // not logged in
-  if (user === null) return <LoginForm />
-
-  // compute unique routes from data
   const routes = Array.from(
     new Set(data.map(r => `${r.origin}-${r.destination}`))
   ).sort()
@@ -87,6 +73,10 @@ export default function FlightApp() {
         const [o, d] = routeFilter.split('-') as [Origin, Destination]
         return `${o} → ${d}`
       })()
+
+  if (showLogin && !isLoggedIn) {
+    return <LoginForm onCancel={() => setShowLogin(false)} />
+  }
 
   return (
     <div ref={containerRef} style={{ minHeight: '100vh', background: 'var(--bg)' }}>
@@ -131,14 +121,20 @@ export default function FlightApp() {
             >
               {theme === 'light' ? '☾ Tema escuro' : '☀ Tema claro'}
             </button>
-            <button
-              className="btn-ghost"
-              onClick={() => supabase.auth.signOut()}
-              style={{ alignSelf: 'flex-end', height: 38, whiteSpace: 'nowrap' }}
-              title={user.email}
-            >
-              Sair
-            </button>
+            {isLoggedIn ? (
+              <button className="btn-ghost"
+                onClick={() => supabase.auth.signOut()}
+                style={{ alignSelf: 'flex-end', height: 38 }}
+                title={user.email}>
+                Sair
+              </button>
+            ) : (
+              <button className="btn-ghost"
+                onClick={() => setShowLogin(true)}
+                style={{ alignSelf: 'flex-end', height: 38 }}>
+                Entrar
+              </button>
+            )}
             {loading && (
               <span style={{ alignSelf: 'flex-end', fontSize: 11,
                 color: 'var(--text3)', fontFamily: 'JetBrains Mono, monospace' }}>
@@ -148,13 +144,15 @@ export default function FlightApp() {
           </div>
         </header>
 
-        {/* ── Sticky top block: form + chart ── */}
-        <div style={isNarrow ? styles.topBlockNarrow : styles.topBlock}>
-          <PriceForm
-            onSaved={fetchData}
-            editing={editing}
-            onCancelEdit={() => setEditing(null)}
-          />
+        {/* ── Sticky top block: form (só logado) + chart ── */}
+        <div style={isNarrow ? styles.topBlockNarrow : (isLoggedIn ? styles.topBlock : styles.topBlockReadonly)}>
+          {isLoggedIn && (
+            <PriceForm
+              onSaved={fetchData}
+              editing={editing}
+              onCancelEdit={() => setEditing(null)}
+            />
+          )}
           <PriceChart data={filteredData} routeLabel={routeLabel} isNarrow={isNarrow} />
         </div>
 
@@ -164,6 +162,7 @@ export default function FlightApp() {
           data={data}
           routeFilter={routeFilter}
           isNarrow={isNarrow}
+          canEdit={isLoggedIn}
           onRefresh={fetchData}
           onEdit={row => {
             setEditing(row)
@@ -231,6 +230,17 @@ const styles: Record<string, React.CSSProperties> = {
     gridTemplateColumns: '460px minmax(0,1fr)',
     gap: 20,
     alignItems: 'stretch',
+    position: 'sticky',
+    top: 0,
+    zIndex: 5,
+    background: 'var(--bg)',
+    padding: '16px 0',
+    marginTop: -16,
+  },
+  topBlockReadonly: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0,1fr)',
+    gap: 20,
     position: 'sticky',
     top: 0,
     zIndex: 5,
