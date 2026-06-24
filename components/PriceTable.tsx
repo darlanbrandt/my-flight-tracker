@@ -10,6 +10,7 @@ type Props = {
   data: FlightPrice[]
   routeFilter: RouteKey
   isNarrow: boolean
+  canEdit: boolean
   onRefresh: () => void
   onEdit: (row: FlightPrice) => void
 }
@@ -30,7 +31,7 @@ function getMinByAirline(data: FlightPrice[]) {
   return map
 }
 
-export default function PriceTable({ data, routeFilter, isNarrow, onRefresh, onEdit }: Props) {
+export default function PriceTable({ data, routeFilter, isNarrow, canEdit, onRefresh, onEdit }: Props) {
   const [deleting, setDeleting]   = useState<string | null>(null)
   const [filter, setFilter]       = useState<AirlineFilter>('all')
   const [sortDir, setSortDir]     = useState<'asc' | 'desc'>('desc')
@@ -104,12 +105,14 @@ export default function PriceTable({ data, routeFilter, isNarrow, onRefresh, onE
                       {format(parseISO(row.date), 'dd/MM/yyyy')}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn-edit" onClick={() => onEdit(row)} title="Editar" style={{ width: 30, height: 30, padding: 0 }}>✏️</button>
-                    <button className="btn-danger" onClick={() => handleDelete(row.id)} disabled={deleting === row.id} title="Deletar" style={{ width: 30, height: 30, padding: 0 }}>
-                      {deleting === row.id ? '…' : '🗑'}
-                    </button>
-                  </div>
+                  {canEdit && (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn-edit" onClick={() => onEdit(row)} title="Editar" style={{ width: 30, height: 30, padding: 0 }}>✏️</button>
+                      <button className="btn-danger" onClick={() => handleDelete(row.id)} disabled={deleting === row.id} title="Deletar" style={{ width: 30, height: 30, padding: 0 }}>
+                        {deleting === row.id ? '…' : '🗑'}
+                      </button>
+                    </div>
+                  )}
                 </div>
                 {/* route */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
@@ -144,7 +147,7 @@ export default function PriceTable({ data, routeFilter, isNarrow, onRefresh, onE
           <table style={styles.table}>
             <thead>
               <tr>
-                {['DATA', 'CIA', 'ORIGEM', 'DESTINO', 'IDA', 'VOLTA', 'TOTAL', ''].map(h => (
+                {[...['DATA', 'CIA', 'ORIGEM', 'DESTINO', 'IDA', 'VOLTA', 'TOTAL'], ...(canEdit ? [''] : [])].map(h => (
                   <th key={h} style={{ ...styles.th, textAlign: h === '' ? 'right' : 'left' }}>{h}</th>
                 ))}
               </tr>
@@ -176,15 +179,17 @@ export default function PriceTable({ data, routeFilter, isNarrow, onRefresh, onE
                       {formatBRL(row.total)}
                       {isBest && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 400 }}>★ min</span>}
                     </td>
-                    <td style={{ ...styles.td, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <button className="btn-edit" onClick={() => onEdit(row)} title="Editar"
-                        style={{ width: 30, height: 30, padding: 0, marginRight: 4 }}>✏️</button>
-                      <button className="btn-danger" onClick={() => handleDelete(row.id)}
-                        disabled={deleting === row.id} title="Deletar"
-                        style={{ width: 30, height: 30, padding: 0 }}>
-                        {deleting === row.id ? '…' : '🗑'}
-                      </button>
-                    </td>
+                    {canEdit && (
+                      <td style={{ ...styles.td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <button className="btn-edit" onClick={() => onEdit(row)} title="Editar"
+                          style={{ width: 30, height: 30, padding: 0, marginRight: 4 }}>✏️</button>
+                        <button className="btn-danger" onClick={() => handleDelete(row.id)}
+                          disabled={deleting === row.id} title="Deletar"
+                          style={{ width: 30, height: 30, padding: 0 }}>
+                          {deleting === row.id ? '…' : '🗑'}
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 )
               })}
