@@ -1,0 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg:        #0b0f1a;
+  --surface:   #111827;
+  --surface-2: #1a2235;
+  --border:    #1f2d45;
+  --border-2:  #263348;
+
+  --arajet:    #e8433a;
+  --arajet-dim:#7a1f1b;
+  --avianca:   #f5a623;
+  --avianca-dim:#7a4f0a;
+
+  --text:      #e2e8f0;
+  --text-2:    #8fa3be;
+  --text-3:    #4a6380;
+
+  --green:     #22c55e;
+  --red:       #ef4444;
+
+  --radius:    6px;
+  --radius-lg: 12px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
+
+/* typography helpers */
+.mono { font-family: 'JetBrains Mono', monospace; }
+
+/* airline badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.badge-arajet  { background: var(--arajet-dim);  color: var(--arajet);  }
+.badge-avianca { background: var(--avianca-dim); color: var(--avianca); }
+
+/* form inputs */
+input, select, textarea {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 12px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--arajet);
+}
+select option { background: var(--surface-2); }
+
+/* buttons */
+button {
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  border: none;
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  transition: opacity 0.15s, background 0.15s;
+}
+button:hover { opacity: 0.85; }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--arajet);
+  color: #fff;
+  font-weight: 600;
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { background: var(--surface-2); opacity: 1; }
+.btn-danger {
+  background: transparent;
+  color: var(--red);
+  border: 1px solid transparent;
+  padding: 4px 8px;
+}
+.btn-danger:hover { background: rgba(239,68,68,0.1); opacity: 1; }
+.btn-edit {
+  background: transparent;
+  color: var(--text-2);
+  border: 1px solid transparent;
+  padding: 4px 8px;
+}
+.btn-edit:hover { background: var(--surface-2); opacity: 1; }
