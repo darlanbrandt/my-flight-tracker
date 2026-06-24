@@ -1,13 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { supabase, FlightPrice, Airline, Origin, Destination, ORIGINS, DESTINATIONS } from '@/lib/supabase'
+import { supabase, FlightPrice, Airline, Origin, Destination, ORIGINS, DESTINATIONS, RouteKey } from '@/lib/supabase'
 import PriceForm  from '@/components/PriceForm'
 import PriceChart from '@/components/PriceChart'
 import PriceTable from '@/components/PriceTable'
 import StatsBar   from '@/components/StatsBar'
 
-export type RouteKey = 'all' | string // e.g. "GRU-EWR"
 
 export default function FlightApp() {
   const [data, setData]           = useState<FlightPrice[]>([])
