@@ -113,7 +113,7 @@ export default function FlightApp() {
               onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
               style={{ alignSelf: 'flex-end', height: 38, whiteSpace: 'nowrap' }}
             >
-              {theme === 'dark' ? '☾ Tema escuro' : '☀ Tema claro'}
+              {theme === 'light' ? '☾ Tema escuro' : '☀ Tema claro'}
             </button>
             {loading && (
               <span style={{ alignSelf: 'flex-end', fontSize: 11,
