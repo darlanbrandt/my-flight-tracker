@@ -9,10 +9,24 @@ type Props = {
   onCancelEdit: () => void
 }
 
-export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
-  const today = new Date().toISOString().split('T')[0]
+// Convert YYYY-MM-DD → DD/MM/YYYY
+function isoToBR(iso: string): string {
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
 
-  const [date, setDate]         = useState(today)
+// Convert DD/MM/YYYY → YYYY-MM-DD (for Supabase)
+function brToISO(br: string): string {
+  const [d, m, y] = br.split('/')
+  return `${y}-${m}-${d}`
+}
+
+function todayBR(): string {
+  return isoToBR(new Date().toISOString().split('T')[0])
+}
+
+export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
+  const [date, setDate]         = useState(todayBR)
   const [airline, setAirline]   = useState<'Arajet' | 'Avianca'>('Arajet')
   const [priceOut, setPriceOut] = useState('')
   const [priceBack, setPriceBack] = useState('')
@@ -23,13 +37,13 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
   // populate form when editing
   useEffect(() => {
     if (editing) {
-      setDate(editing.date)
+      setDate(isoToBR(editing.date))
       setAirline(editing.airline)
       setPriceOut(String(editing.price_out))
       setPriceBack(String(editing.price_back))
       setNotes(editing.notes ?? '')
     } else {
-      setDate(today)
+      setDate(todayBR())
       setAirline('Arajet')
       setPriceOut('')
       setPriceBack('')
@@ -50,15 +64,16 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
     const out  = parseBRL(priceOut)
     const back = parseBRL(priceBack)
 
-    if (!date || isNaN(out) || isNaN(back)) {
-      setError('Preencha data e valores válidos.')
+    const dateISO = brToISO(date)
+    if (!date || !/^\d{2}\/\d{2}\/\d{4}$/.test(date) || isNaN(out) || isNaN(back)) {
+      setError('Preencha data (DD/MM/AAAA) e valores válidos.')
       return
     }
 
     setLoading(true)
 
     const payload: FlightPriceInsert = {
-      date,
+      date: dateISO,
       airline,
       price_out: out,
       price_back: back,
@@ -86,7 +101,7 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
       setPriceOut('')
       setPriceBack('')
       setNotes('')
-      setDate(today)
+      setDate(todayBR())
     } else {
       onCancelEdit()
     }
@@ -105,9 +120,11 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
         <label style={styles.label}>
           Data
           <input
-            type="date"
+            type="text"
+            placeholder="DD/MM/AAAA"
             value={date}
             onChange={e => setDate(e.target.value)}
+            maxLength={10}
             required
           />
         </label>
