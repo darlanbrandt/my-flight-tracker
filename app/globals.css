@@ -1,115 +1,209 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+/* ─── Tokens: dark (default) ───────────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  --bg:          #0b0f1a;
+  --surface:     #111827;
+  --surface2:    #1a2235;
+  --border:      #1f2d45;
+  --border2:     #263348;
+  --text:        #e2e8f0;
+  --text2:       #8fa3be;
+  --text3:       #5b7088;
+  --primary:     #e8433a;
+  --primaryText: #ffffff;
+  --green:       #22c55e;
+  --green-bg:    #15803d;
+  --red:         #ef4444;
+  --red-bg:      #b91c1c;
+  --shadow:      0 1px 2px rgba(0,0,0,.3);
 
-:root {
-  --bg:        #0b0f1a;
-  --surface:   #111827;
-  --surface-2: #1a2235;
-  --border:    #1f2d45;
-  --border-2:  #263348;
-
-  --arajet:    #e8433a;
-  --arajet-dim:#7a1f1b;
-  --avianca:   #f5a623;
-  --avianca-dim:#7a4f0a;
-
-  --text:      #e2e8f0;
-  --text-2:    #8fa3be;
-  --text-3:    #4a6380;
-
-  --green:     #22c55e;
-  --red:       #ef4444;
-
-  --radius:    6px;
-  --radius-lg: 12px;
+  --arajet-dim:   #3a1714;
+  --avianca-dim:  #3a2a0c;
+  --american-dim: #142536;
 }
 
+/* ─── Tokens: light ────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg:          #eef1f7;
+  --surface:     #ffffff;
+  --surface2:    #f3f5fa;
+  --border:      #e2e7f0;
+  --border2:     #d3dbe8;
+  --text:        #0f1b2d;
+  --text2:       #56657d;
+  --text3:       #94a3b8;
+  --primary:     #1f3a8a;
+  --primaryText: #ffffff;
+  --green:       #16a34a;
+  --green-bg:    #16a34a;
+  --red:         #dc2626;
+  --red-bg:      #dc2626;
+  --shadow:      0 1px 3px rgba(15,27,45,.06), 0 10px 30px -18px rgba(15,27,45,.18);
+
+  --arajet-dim:   #fdecea;
+  --avianca-dim:  #fdf3e0;
+  --american-dim: #e7f0fb;
+}
+
+/* ─── Airline colors (theme-independent) ───────────────────────── */
+:root {
+  --arajet:   #e8433a;
+  --avianca:  #f5a623;
+  --american: #2f7fd1;
+}
+
+/* ─── Reset ─────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ─── Base ──────────────────────────────────────────────────────── */
+html { color-scheme: dark light; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Hanken Grotesk', sans-serif;
   font-size: 14px;
   line-height: 1.6;
   min-height: 100vh;
+  transition: background 0.25s, color 0.25s;
 }
 
-/* scrollbar */
+/* ─── Scrollbar ─────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
-/* typography helpers */
-.mono { font-family: 'JetBrains Mono', monospace; }
+/* ─── Typography helpers ────────────────────────────────────────── */
+.font-grotesk { font-family: 'Space Grotesk', sans-serif; }
+.mono         { font-family: 'JetBrains Mono', monospace; }
 
-/* airline badges */
+/* ─── Airline badges ────────────────────────────────────────────── */
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 2px 8px;
-  border-radius: 99px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
-.badge-arajet  { background: var(--arajet-dim);  color: var(--arajet);  }
-.badge-avianca { background: var(--avianca-dim); color: var(--avianca); }
+.badge-arajet   { background: var(--arajet-dim);   color: var(--arajet);   }
+.badge-avianca  { background: var(--avianca-dim);  color: var(--avianca);  }
+.badge-american { background: var(--american-dim); color: var(--american); }
 
-/* form inputs */
+/* ─── Airport chips ─────────────────────────────────────────────── */
+.chip {
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--surface2);
+  color: var(--text2);
+  padding: 3px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.03em;
+}
+
+/* ─── Form inputs ───────────────────────────────────────────────── */
 input, select, textarea {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 9px;
   color: var(--text);
-  font-family: inherit;
-  font-size: 13px;
-  padding: 8px 12px;
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 14px;
+  padding: 10px 12px;
   width: 100%;
   outline: none;
   transition: border-color 0.15s;
+  appearance: none;
 }
-input:focus, select:focus, textarea:focus {
-  border-color: var(--arajet);
+input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b7088' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
 }
-select option { background: var(--surface-2); }
+select option { background: var(--surface2); }
+input.mono-input, input[type="text"].mono-input {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+}
 
-/* buttons */
+/* ─── Buttons ───────────────────────────────────────────────────── */
 button {
   cursor: pointer;
-  font-family: inherit;
+  font-family: 'Hanken Grotesk', sans-serif;
   font-size: 13px;
   border: none;
-  border-radius: var(--radius);
+  border-radius: 9px;
   padding: 8px 16px;
   transition: opacity 0.15s, background 0.15s;
 }
-button:hover { opacity: 0.85; }
+button:hover   { opacity: 0.85; }
 button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .btn-primary {
-  background: var(--arajet);
-  color: #fff;
-  font-weight: 600;
+  background: var(--primary);
+  color: var(--primaryText);
+  font-weight: 700;
+  box-shadow: 0 6px 16px -8px var(--primary);
 }
 .btn-ghost {
   background: transparent;
-  color: var(--text-2);
-  border: 1px solid var(--border);
+  color: var(--text2);
+  border: 1px solid var(--border2);
 }
-.btn-ghost:hover { background: var(--surface-2); opacity: 1; }
+.btn-ghost:hover { background: var(--surface2); opacity: 1; }
 .btn-danger {
   background: transparent;
   color: var(--red);
   border: 1px solid transparent;
   padding: 4px 8px;
+  border-radius: 8px;
 }
 .btn-danger:hover { background: rgba(239,68,68,0.1); opacity: 1; }
 .btn-edit {
-  background: transparent;
-  color: var(--text-2);
-  border: 1px solid transparent;
+  background: var(--surface2);
+  color: var(--text2);
+  border: 1px solid var(--border2);
   padding: 4px 8px;
+  border-radius: 8px;
 }
-.btn-edit:hover { background: var(--surface-2); opacity: 1; }
+.btn-edit:hover { background: var(--border); opacity: 1; }
+
+/* ─── Segmented control (table filter) ─────────────────────────── */
+.segmented {
+  display: flex;
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 4px;
+  gap: 2px;
+}
+.segmented button {
+  background: transparent;
+  color: var(--text2);
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border: none;
+}
+.segmented button.active {
+  background: var(--primary);
+  color: var(--primaryText);
+  opacity: 1;
+}
+.segmented button:not(.active):hover { background: var(--border); opacity: 1; }
+
+/* ─── Section label ─────────────────────────────────────────────── */
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 8px;
+}
