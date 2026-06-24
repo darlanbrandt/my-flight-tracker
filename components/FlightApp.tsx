@@ -1,14 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { supabase, FlightPrice, Airline, Origin, Destination, ORIGINS, DESTINATIONS, RouteKey } from '@/lib/supabase'
+import type { User } from '@supabase/supabase-js'
+import { supabase, FlightPrice, Origin, Destination, RouteKey } from '@/lib/supabase'
 import PriceForm  from '@/components/PriceForm'
 import PriceChart from '@/components/PriceChart'
 import PriceTable from '@/components/PriceTable'
 import StatsBar   from '@/components/StatsBar'
-
+import LoginForm  from '@/components/LoginForm'
 
 export default function FlightApp() {
+  const [user, setUser]           = useState<User | null | undefined>(undefined) // undefined = loading
   const [data, setData]           = useState<FlightPrice[]>([])
   const [loading, setLoading]     = useState(true)
   const [editing, setEditing]     = useState<FlightPrice | null>(null)
@@ -16,6 +18,17 @@ export default function FlightApp() {
   const [routeFilter, setRoute]   = useState<RouteKey>('all')
   const [isNarrow, setIsNarrow]   = useState(false)
   const containerRef              = useRef<HTMLDivElement>(null)
+
+  // auth state
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUser(session?.user ?? null)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -27,14 +40,14 @@ export default function FlightApp() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => {
+    if (user) fetchData()
+  }, [user, fetchData])
 
-  // apply theme to <html>
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
-  // responsive breakpoint at 880px
   useEffect(() => {
     const check = () => {
       const w = containerRef.current?.offsetWidth ?? window.innerWidth
@@ -45,12 +58,25 @@ export default function FlightApp() {
     return () => window.removeEventListener('resize', check)
   }, [])
 
+  // still resolving session
+  if (user === undefined) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ fontSize: 12, color: 'var(--text3)',
+          fontFamily: 'JetBrains Mono, monospace' }}>carregando...</span>
+      </div>
+    )
+  }
+
+  // not logged in
+  if (user === null) return <LoginForm />
+
   // compute unique routes from data
   const routes = Array.from(
     new Set(data.map(r => `${r.origin}-${r.destination}`))
   ).sort()
 
-  // filtered dataset for chart + stats
   const filteredData = routeFilter === 'all'
     ? data
     : data.filter(r => `${r.origin}-${r.destination}` === routeFilter)
@@ -68,7 +94,6 @@ export default function FlightApp() {
 
         {/* ── Header ── */}
         <header style={styles.header}>
-          {/* Brand */}
           <div style={styles.brand}>
             <div style={styles.logoBox}>
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none"
@@ -84,26 +109,18 @@ export default function FlightApp() {
             </div>
           </div>
 
-          {/* Controls */}
           <div style={styles.controls}>
             <div>
               <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)',
                 textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
                 Rota
               </p>
-              <select
-                value={routeFilter}
-                onChange={e => setRoute(e.target.value)}
-                style={{ minWidth: 150 }}
-              >
+              <select value={routeFilter} onChange={e => setRoute(e.target.value)}
+                style={{ minWidth: 150 }}>
                 <option value="all">Todas as rotas</option>
                 {routes.map(r => {
                   const [o, d] = r.split('-') as [Origin, Destination]
-                  return (
-                    <option key={r} value={r}>
-                      {o} → {d}
-                    </option>
-                  )
+                  return <option key={r} value={r}>{o} → {d}</option>
                 })}
               </select>
             </div>
@@ -113,6 +130,14 @@ export default function FlightApp() {
               style={{ alignSelf: 'flex-end', height: 38, whiteSpace: 'nowrap' }}
             >
               {theme === 'dark' ? '☾ Tema escuro' : '☀ Tema claro'}
+            </button>
+            <button
+              className="btn-ghost"
+              onClick={() => supabase.auth.signOut()}
+              style={{ alignSelf: 'flex-end', height: 38, whiteSpace: 'nowrap' }}
+              title={user.email}
+            >
+              Sair
             </button>
             {loading && (
               <span style={{ alignSelf: 'flex-end', fontSize: 11,
@@ -133,10 +158,8 @@ export default function FlightApp() {
           <PriceChart data={filteredData} routeLabel={routeLabel} isNarrow={isNarrow} />
         </div>
 
-        {/* ── Stats cards ── */}
         <StatsBar data={filteredData} isNarrow={isNarrow} />
 
-        {/* ── Table ── */}
         <PriceTable
           data={data}
           routeFilter={routeFilter}
