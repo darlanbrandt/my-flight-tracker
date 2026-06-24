@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase, FlightPrice, Airline, AIRLINE_COLORS, ORIGINS, DESTINATIONS } from '@/lib/supabase'
+import { supabase, FlightPrice, Airline, AIRLINE_COLORS, ORIGINS, DESTINATIONS, RouteKey } from '@/lib/supabase'
 import { format, parseISO } from 'date-fns'
-import type { RouteKey } from '@/app/page'
 
 type AirlineFilter = 'all' | Airline
 

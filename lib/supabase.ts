@@ -46,6 +46,8 @@ export const DESTINATIONS_BY_AIRLINE: Record<Airline, Destination[]> = {
   American: ['EWR', 'MIA', 'JFK', 'DFW'],
 }
 
+export type RouteKey = 'all' | string
+
 export type FlightPrice = {
   id: string
   date: string
