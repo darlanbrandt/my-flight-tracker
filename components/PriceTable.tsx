@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase, FlightPrice } from '@/lib/supabase'
+import { supabase, FlightPrice, ORIGINS, DESTINATIONS } from '@/lib/supabase'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -86,7 +86,7 @@ export default function PriceTable({ data, onRefresh, onEdit }: Props) {
         <table style={styles.table}>
           <thead>
             <tr>
-              {['Data', 'Companhia', 'Ida', 'Volta', 'Total', ''].map(h => (
+              {['Data', 'Companhia', 'Origem', 'Destino', 'Ida', 'Volta', 'Total', ''].map(h => (
                 <th key={h} style={styles.th}>{h}</th>
               ))}
             </tr>
@@ -102,6 +102,16 @@ export default function PriceTable({ data, onRefresh, onEdit }: Props) {
                   <td style={styles.td}>
                     <span className={`badge badge-${row.airline.toLowerCase()}`}>
                       {row.airline}
+                    </span>
+                  </td>
+                  <td style={styles.td}>
+                    <span style={styles.airportCode} title={ORIGINS[row.origin] ?? row.origin}>
+                      {row.origin}
+                    </span>
+                  </td>
+                  <td style={styles.td}>
+                    <span style={styles.airportCode} title={DESTINATIONS[row.destination] ?? row.destination}>
+                      {row.destination}
                     </span>
                   </td>
                   <td style={{ ...styles.td, ...styles.mono, color: 'var(--text-2)' }}>
@@ -197,6 +207,16 @@ const styles: Record<string, React.CSSProperties> = {
   mono: {
     fontFamily: 'JetBrains Mono, monospace',
     fontSize: 12,
+  },
+  airportCode: {
+    fontFamily: 'JetBrains Mono, monospace',
+    fontSize: 12,
+    fontWeight: 600,
+    background: 'var(--surface-2, #1e2535)',
+    color: 'var(--text-2)',
+    padding: '2px 6px',
+    borderRadius: 4,
+    letterSpacing: '0.05em',
   },
   empty: {
     padding: 40,
