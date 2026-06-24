@@ -12,7 +12,7 @@ export default function FlightApp() {
   const [data, setData]           = useState<FlightPrice[]>([])
   const [loading, setLoading]     = useState(true)
   const [editing, setEditing]     = useState<FlightPrice | null>(null)
-  const [theme, setTheme]         = useState<'dark' | 'light'>('dark')
+  const [theme, setTheme]         = useState<'dark' | 'light'>('light')
   const [routeFilter, setRoute]   = useState<RouteKey>('all')
   const [isNarrow, setIsNarrow]   = useState(false)
   const containerRef              = useRef<HTMLDivElement>(null)
