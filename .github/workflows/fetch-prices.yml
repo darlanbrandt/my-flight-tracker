@@ -2,7 +2,7 @@ name: Fetch Flight Prices
 
 on:
   schedule:
-    - cron: "0 9 * * 1-5"  # seg–sex, 09:00 UTC = 06:00 Brasília
+    - cron: "0 9 * * *"    # 09:00 UTC = 06:00 Brasília
   workflow_dispatch:        # permite rodar manualmente pelo GitHub
 
 jobs:
