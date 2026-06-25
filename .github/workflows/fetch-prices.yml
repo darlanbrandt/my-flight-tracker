@@ -23,6 +23,13 @@ jobs:
       - name: Instalar dependências
         run: pip install -r requirements.txt
 
+      - name: Diagnóstico SERPAPI_KEY
+        env:
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+        run: |
+          echo "Primeiros 6 chars: ${SERPAPI_KEY:0:6}"
+          echo "Tamanho total: ${#SERPAPI_KEY}"
+
       - name: Buscar preços e salvar no Supabase
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
