@@ -32,18 +32,19 @@ HEADERS = {
 
 @dataclass
 class Route:
-    airline_display: str   # nome exibido no app
-    airline_iata: str      # código IATA para filtrar resultados
+    airline_display: str   # nome exibido no app e no banco
+    airline_name: str      # nome como aparece no Google Flights (para filtrar)
     origin: str
     destination: str
     date_out: str          # YYYY-MM-DD
     date_back: str         # YYYY-MM-DD
+    max_stops: int = 2     # 2 cobre voos com 1 conexão (ex: GRU→BOG→IAD)
 
 ROUTES: list[Route] = [
-    Route("Arajet",   "DM", "GRU", "EWR", "2026-11-19", "2026-11-28"),
-    Route("Avianca",  "AV", "GRU", "IAD", "2026-11-19", "2026-11-28"),
-    Route("Avianca",  "AV", "GIG", "IAD", "2026-11-19", "2026-11-28"),
-    Route("American", "AA", "GIG", "JFK", "2026-11-19", "2026-11-28"),
+    Route("Arajet",   "Arajet",            "GRU", "EWR", "2026-11-19", "2026-11-28"),
+    Route("Avianca",  "Avianca",            "GRU", "IAD", "2026-11-19", "2026-11-28"),
+    Route("Avianca",  "Avianca",            "GIG", "IAD", "2026-11-19", "2026-11-28"),
+    Route("American", "American Airlines",  "GIG", "JFK", "2026-11-19", "2026-11-28"),
 ]
 
 
@@ -51,23 +52,15 @@ def fetch_best_price(route: Route) -> float | None:
     log.info(f"Buscando {route.airline_display} {route.origin}→{route.destination} ...")
     query = create_query(
         flights=[
-            FlightQuery(
-                date=route.date_out,
-                from_airport=route.origin,
-                to_airport=route.destination,
-            ),
-            FlightQuery(
-                date=route.date_back,
-                from_airport=route.destination,
-                to_airport=route.origin,
-            ),
+            FlightQuery(date=route.date_out,  from_airport=route.origin,      to_airport=route.destination),
+            FlightQuery(date=route.date_back, from_airport=route.destination,  to_airport=route.origin),
         ],
         trip="round-trip",
         seat="economy",
         passengers=Passengers(adults=1),
         currency="BRL",
         language="pt-BR",
-        max_stops=1,
+        max_stops=route.max_stops,
     )
     try:
         results = get_flights(query)
@@ -83,19 +76,18 @@ def fetch_best_price(route: Route) -> float | None:
         log.warning("  Lista de resultados vazia.")
         return None
 
-    # filtra pela companhia na resposta também (segurança dupla)
-    matching = [r for r in results if route.airline_iata in r.airlines]
+    # filtra pelo nome da companhia como aparece no Google Flights
+    matching = [r for r in results if route.airline_name in r.airlines]
 
     if not matching:
-        found = set(code for r in results for code in r.airlines)
-        log.warning(f"  {route.airline_iata} não encontrada nos resultados. Disponíveis: {found}")
-        log.info(f"  Usando o melhor preço geral como fallback.")
-        matching = results  # usa qualquer voo disponível como fallback
+        found = set(name for r in results for name in r.airlines)
+        log.warning(f"  '{route.airline_name}' não encontrada. Disponíveis: {found}")
+        log.warning(f"  Pulando — não salvar preço de outra companhia como {route.airline_display}.")
+        return None
 
     best = min(matching, key=lambda r: r.price)
     price_brl = best.price / 100  # fast-flights retorna em centavos
-    airlines_str = ", ".join(set(code for r in matching for code in r.airlines))
-    log.info(f"  Melhor preço: R$ {price_brl:,.2f} (companhias: {airlines_str})")
+    log.info(f"  Melhor preço: R$ {price_brl:,.2f}")
     return price_brl
 
 
