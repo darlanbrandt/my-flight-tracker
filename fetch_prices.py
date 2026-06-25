@@ -131,11 +131,10 @@ def upsert_to_supabase(route: Route, price_out: float, price_back: float) -> boo
         "destination": route.destination,
         "price_out":   price_out,
         "price_back":  price_back,
-        "notes":       "Automático — sem bagagem despachada",
     }
     try:
         resp = httpx.post(
-            f"{SUPABASE_URL}/rest/v1/flight_prices",
+            f"{SUPABASE_URL}/rest/v1/flight_prices_auto",
             headers=SUPABASE_HEADERS,
             json=payload,
             timeout=15,
