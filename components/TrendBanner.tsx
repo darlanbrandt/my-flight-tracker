@@ -22,9 +22,8 @@ export default function TrendBanner() {
   useEffect(() => {
     async function calcTrends() {
       const { data } = await supabase
-        .from('flight_prices')
+        .from('flight_prices_auto')
         .select('date, airline, origin, destination, total')
-        .ilike('notes', 'Automático%')
         .order('date', { ascending: false })
         .limit(200)
 
