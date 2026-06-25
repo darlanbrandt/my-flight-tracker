@@ -10,7 +10,6 @@ import json
 import logging
 from datetime import date
 from dataclasses import dataclass
-from urllib.parse import urlencode
 
 import httpx
 
@@ -32,11 +31,7 @@ SUPABASE_HEADERS = {
     "Prefer": "resolution=merge-duplicates,return=minimal",
 }
 
-PROXY_URL = "https://serpapi.talordata.net/request"
-PROXY_HEADERS = {
-    "Authorization": f"Bearer {SERPAPI_KEY}",
-    "Content-Type": "application/x-www-form-urlencoded",
-}
+SERPAPI_URL = "https://serpapi.talordata.net/serp/v1/request"
 
 @dataclass
 class Route:
@@ -55,31 +50,23 @@ ROUTES: list[Route] = [
 ]
 
 
-def build_google_flights_url(route: Route) -> str:
-    params = urlencode({
-        "engine":        "google_flights",
-        "departure_id":  route.origin,
-        "arrival_id":    route.destination,
-        "outbound_date": route.date_out,
-        "return_date":   route.date_back,
-        "currency":      "BRL",
-        "hl":            "en",
-        "type":          "1",
-        "max_stops":     "1",
-    })
-    return f"https://serpapi.com/search.json?{params}"
-
-
 def fetch_best_price(route: Route) -> float | None:
     log.info(f"Buscando {route.airline_display} {route.origin}→{route.destination} ...")
-    target_url = build_google_flights_url(route)
-    log.info(f"  URL alvo: {target_url}")
-
     try:
-        resp = httpx.post(
-            PROXY_URL,
-            headers=PROXY_HEADERS,
-            content=urlencode({"url": target_url, "json": "1"}).encode(),
+        resp = httpx.post(SERPAPI_URL,
+            headers={"Authorization": f"Bearer {SERPAPI_KEY}"},
+            data={
+                "engine":        "google_flights",
+                "departure_id":  route.origin,
+                "arrival_id":    route.destination,
+                "outbound_date": route.date_out,
+                "return_date":   route.date_back,
+                "currency":      "BRL",
+                "hl":            "en",
+                "type":          "1",
+                "max_stops":     "1",
+                "json":          "2",
+            },
             timeout=30,
         )
         resp.raise_for_status()
