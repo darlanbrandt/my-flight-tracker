@@ -65,7 +65,7 @@ export default function TrendBanner() {
   return (
     <div style={styles.wrapper}>
       <div style={styles.header}>
-        <span style={{ fontSize: 16 }}>📉</span>
+        <span style={styles.arrow}>↓</span>
         <span style={styles.title}>Tendência de baixa detectada</span>
         <span style={styles.sub}>Preços sem bagagem — confirme no site da companhia</span>
       </div>
@@ -98,6 +98,15 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 12,
+    overflow: 'hidden',
+    minWidth: 0,
+  },
+  arrow: {
+    fontFamily: 'Space Grotesk, sans-serif',
+    fontWeight: 700,
+    fontSize: 16,
+    color: 'var(--green)',
+    lineHeight: 1,
   },
   header: {
     display: 'flex',
@@ -130,7 +139,7 @@ const styles: Record<string, React.CSSProperties> = {
   route: {
     fontSize: 13,
     color: 'var(--text)',
-    minWidth: 180,
+    minWidth: 160,
   },
   prices: {
     fontFamily: 'JetBrains Mono, monospace',
