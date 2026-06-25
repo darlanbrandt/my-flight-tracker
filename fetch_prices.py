@@ -55,15 +55,11 @@ def fetch_best_price(route: Route) -> float | None:
                 date=route.date_out,
                 from_airport=route.origin,
                 to_airport=route.destination,
-                max_stops=1,
-                airlines=[route.airline_iata],  # filtra pela companhia na query
             ),
             FlightQuery(
                 date=route.date_back,
                 from_airport=route.destination,
                 to_airport=route.origin,
-                max_stops=1,
-                airlines=[route.airline_iata],
             ),
         ],
         trip="round-trip",
@@ -71,6 +67,7 @@ def fetch_best_price(route: Route) -> float | None:
         passengers=Passengers(adults=1),
         currency="BRL",
         language="pt-BR",
+        max_stops=1,
     )
     try:
         results = get_flights(query)
