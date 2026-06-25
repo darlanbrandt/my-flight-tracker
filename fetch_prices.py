@@ -59,7 +59,7 @@ def fetch_best_price(route: Route) -> float | None:
         seat="economy",
         passengers=Passengers(adults=1),
         currency="BRL",
-        language="en-US",
+        language="pt-BR",
         max_stops=route.max_stops,
     )
     try:
