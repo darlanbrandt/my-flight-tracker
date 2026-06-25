@@ -8,6 +8,7 @@ import PriceChart from '@/components/PriceChart'
 import PriceTable from '@/components/PriceTable'
 import StatsBar   from '@/components/StatsBar'
 import LoginForm  from '@/components/LoginForm'
+import TrendBanner from '@/components/TrendBanner'
 
 export default function FlightApp() {
   const [user, setUser]           = useState<User | null | undefined>(undefined)
@@ -143,6 +144,9 @@ export default function FlightApp() {
             )}
           </div>
         </header>
+
+        {/* ── Trend banner ── */}
+        <TrendBanner />
 
         {/* ── Sticky top block: form (só logado) + chart ── */}
         <div style={isNarrow ? styles.topBlockNarrow : (isLoggedIn ? styles.topBlock : styles.topBlockReadonly)}>
