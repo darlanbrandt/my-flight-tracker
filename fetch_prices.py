@@ -31,7 +31,7 @@ SUPABASE_HEADERS = {
     "Prefer": "resolution=merge-duplicates,return=minimal",
 }
 
-SERPAPI_URL = "https://serpapi.talordata.net/serp/v1/request"
+SERPAPI_URL = "https://serpapi.com/search.json"
 
 @dataclass
 class Route:
@@ -53,9 +53,7 @@ ROUTES: list[Route] = [
 def fetch_best_price(route: Route) -> float | None:
     log.info(f"Buscando {route.airline_display} {route.origin}→{route.destination} ...")
     try:
-        resp = httpx.post(SERPAPI_URL,
-            headers={"Authorization": f"Bearer {SERPAPI_KEY}"},
-            data={
+        resp = httpx.get(SERPAPI_URL, params={
                 "engine":        "google_flights",
                 "departure_id":  route.origin,
                 "arrival_id":    route.destination,
@@ -65,7 +63,7 @@ def fetch_best_price(route: Route) -> float | None:
                 "hl":            "en",
                 "type":          "1",
                 "max_stops":     "1",
-                "json":          "2",
+                "api_key":       SERPAPI_KEY,
             },
             timeout=30,
         )
