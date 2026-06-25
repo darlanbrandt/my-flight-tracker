@@ -31,7 +31,7 @@ SUPABASE_HEADERS = {
     "Prefer": "resolution=merge-duplicates,return=minimal",
 }
 
-SERPAPI_URL = "https://serpapi.com/search.json"
+SERPAPI_URL = "https://serpapi.talordata.net/serp/v1/request"
 
 @dataclass
 class Route:
@@ -53,18 +53,22 @@ ROUTES: list[Route] = [
 def fetch_best_price(route: Route) -> float | None:
     log.info(f"Buscando {route.airline_display} {route.origin}→{route.destination} ...")
     try:
-        resp = httpx.get(SERPAPI_URL, params={
-            "engine":        "google_flights",
-            "departure_id":  route.origin,
-            "arrival_id":    route.destination,
-            "outbound_date": route.date_out,
-            "return_date":   route.date_back,
-            "currency":      "BRL",
-            "hl":            "en",
-            "type":          "1",
-            "max_stops":     "1",
-            "api_key":       SERPAPI_KEY,
-        }, timeout=30)
+        resp = httpx.post(SERPAPI_URL,
+            headers={"Authorization": f"Bearer {SERPAPI_KEY}"},
+            data={
+                "engine":        "google_flights",
+                "departure_id":  route.origin,
+                "arrival_id":    route.destination,
+                "outbound_date": route.date_out,
+                "return_date":   route.date_back,
+                "currency":      "BRL",
+                "hl":            "en",
+                "type":          "1",
+                "max_stops":     "1",
+                "json":          "2",
+            },
+            timeout=30,
+        )
         resp.raise_for_status()
     except Exception as e:
         log.warning(f"  Erro na requisição: {e}")
