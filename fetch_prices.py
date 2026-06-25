@@ -1,7 +1,7 @@
 """
 fetch_prices.py
-Busca preços no Google Flights via fast-flights e salva no Supabase.
-Roda via GitHub Actions todo dia às 09:00 UTC (06:00 Brasília).
+Busca preços via SerpAPI (Google Flights) e salva no Supabase.
+Roda via GitHub Actions de segunda a sexta às 09:00 UTC (06:00 Brasília).
 """
 
 import os
@@ -11,7 +11,6 @@ from datetime import date
 from dataclasses import dataclass
 
 import httpx
-from fast_flights import create_query, get_flights, Passengers, FlightQuery, FlightsNotFound
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,79 +20,94 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 SUPABASE_URL = os.environ["SUPABASE_URL"]
-SUPABASE_KEY = os.environ["SUPABASE_KEY"]  # service role key
+SUPABASE_KEY = os.environ["SUPABASE_KEY"]
+SERPAPI_KEY  = os.environ["SERPAPI_KEY"]
 
-HEADERS = {
+SUPABASE_HEADERS = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
     "Content-Type": "application/json",
     "Prefer": "resolution=merge-duplicates,return=minimal",
 }
 
+SERPAPI_URL = "https://serpapi.com/search.json"
+
 @dataclass
 class Route:
     airline_display: str   # nome exibido no app e no banco
-    airline_name: str      # nome como aparece no Google Flights (para filtrar)
+    airline_name: str      # nome como aparece no Google Flights
     origin: str
     destination: str
     date_out: str          # YYYY-MM-DD
     date_back: str         # YYYY-MM-DD
-    max_stops: int = 1     # 1 cobre voos com 1 conexão (ex: GRU→BOG→IAD)
 
 ROUTES: list[Route] = [
-    Route("Arajet",   "Arajet",            "GRU", "EWR", "2026-11-19", "2026-11-28"),
-    Route("Avianca",  "Avianca",            "GRU", "IAD", "2026-11-19", "2026-11-28"),
-    Route("Avianca",  "Avianca",            "GIG", "IAD", "2026-11-19", "2026-11-28"),
-    Route("American", "American",           "GIG", "JFK", "2026-11-19", "2026-11-28"),
+    Route("Arajet",   "Arajet",   "GRU", "EWR", "2026-11-19", "2026-11-28"),
+    Route("Avianca",  "Avianca",  "GRU", "IAD", "2026-11-19", "2026-11-28"),
+    Route("Avianca",  "Avianca",  "GIG", "IAD", "2026-11-19", "2026-11-28"),
+    Route("American", "American", "GIG", "JFK", "2026-11-19", "2026-11-28"),
 ]
 
 
 def fetch_best_price(route: Route) -> float | None:
     log.info(f"Buscando {route.airline_display} {route.origin}→{route.destination} ...")
-    query = create_query(
-        flights=[
-            FlightQuery(date=route.date_out,  from_airport=route.origin,      to_airport=route.destination),
-            FlightQuery(date=route.date_back, from_airport=route.destination,  to_airport=route.origin),
-        ],
-        trip="round-trip",
-        seat="economy",
-        passengers=Passengers(adults=1),
-        currency="BRL",
-        language="pt-BR",
-        max_stops=route.max_stops,
-    )
     try:
-        results = get_flights(query)
-    except FlightsNotFound:
-        log.warning(f"  Nenhum voo encontrado para {route.airline_display} {route.origin}→{route.destination}")
-        log.warning(f"  (A rota pode não existir no Google Flights ou não ter disponibilidade na data)")
-        return None
+        resp = httpx.get(SERPAPI_URL, params={
+            "engine":        "google_flights",
+            "departure_id":  route.origin,
+            "arrival_id":    route.destination,
+            "outbound_date": route.date_out,
+            "return_date":   route.date_back,
+            "currency":      "BRL",
+            "hl":            "pt",
+            "type":          "1",   # round trip
+            "max_stops":     "1",
+            "api_key":       SERPAPI_KEY,
+        }, timeout=30)
+        resp.raise_for_status()
     except Exception as e:
-        log.warning(f"  Erro inesperado: {e}")
+        log.warning(f"  Erro na requisição: {e}")
         return None
 
-    if not results:
-        log.warning("  Lista de resultados vazia.")
+    data = resp.json()
+
+    if "error" in data:
+        log.warning(f"  SerpAPI error: {data['error']}")
         return None
 
-    log.info(f"  {len(results)} resultado(s) encontrado(s).")
-    # filtra pelo nome da companhia como aparece no Google Flights
-    matching = [r for r in results if route.airline_name in r.airlines]
+    all_offers = data.get("best_flights", []) + data.get("other_flights", [])
+
+    if not all_offers:
+        log.warning("  Nenhuma oferta retornada.")
+        return None
+
+    log.info(f"  {len(all_offers)} oferta(s) recebida(s).")
+
+    def is_target(offer: dict) -> bool:
+        for leg in offer.get("flights", []):
+            if route.airline_name not in leg.get("airline", ""):
+                return False
+        return True
+
+    matching = [o for o in all_offers if is_target(o)]
 
     if not matching:
-        found = set(name for r in results for name in r.airlines)
+        found = set(
+            leg.get("airline", "?")
+            for o in all_offers
+            for leg in o.get("flights", [])
+        )
         log.warning(f"  '{route.airline_name}' não encontrada. Disponíveis: {found}")
         log.warning(f"  Pulando — não salvar preço de outra companhia como {route.airline_display}.")
         return None
 
-    best = min(matching, key=lambda r: r.price)
-    price_brl = best.price / 100  # fast-flights retorna em centavos
+    best = min(matching, key=lambda o: o["price"])
+    price_brl = float(best["price"])
     log.info(f"  Melhor preço: R$ {price_brl:,.2f}")
     return price_brl
 
 
 def split_price(total: float) -> tuple[float, float]:
-    """Divide o total igualmente entre ida e volta."""
     half = round(total / 2, 2)
     return half, round(total - half, 2)
 
@@ -112,7 +126,7 @@ def upsert_to_supabase(route: Route, price_out: float, price_back: float) -> boo
     try:
         resp = httpx.post(
             f"{SUPABASE_URL}/rest/v1/flight_prices",
-            headers=HEADERS,
+            headers=SUPABASE_HEADERS,
             json=payload,
             timeout=15,
         )
