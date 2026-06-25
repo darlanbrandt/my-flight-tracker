@@ -24,6 +24,7 @@ export default function TrendBanner() {
       const { data } = await supabase
         .from('flight_prices')
         .select('date, airline, origin, destination, total')
+        .ilike('notes', 'Automático%')
         .order('date', { ascending: false })
         .limit(200)
 
