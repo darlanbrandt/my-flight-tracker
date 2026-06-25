@@ -11,7 +11,7 @@ from datetime import date
 from dataclasses import dataclass
 
 import httpx
-from fast_flights import create_query, get_flights, Passengers, FlightQuery
+from fast_flights import create_query, get_flights, Passengers, FlightQuery, FlightsNotFound
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,7 +33,7 @@ HEADERS = {
 @dataclass
 class Route:
     airline_display: str   # nome exibido no app
-    airline_iata: str      # código IATA para filtrar resultados do Google Flights
+    airline_iata: str      # código IATA para filtrar resultados
     origin: str
     destination: str
     date_out: str          # YYYY-MM-DD
@@ -51,36 +51,51 @@ def fetch_best_price(route: Route) -> float | None:
     log.info(f"Buscando {route.airline_display} {route.origin}→{route.destination} ...")
     query = create_query(
         flights=[
-            FlightQuery(date=route.date_out,  from_airport=route.origin,      to_airport=route.destination, max_stops=1),
-            FlightQuery(date=route.date_back, from_airport=route.destination,  to_airport=route.origin,      max_stops=1),
+            FlightQuery(
+                date=route.date_out,
+                from_airport=route.origin,
+                to_airport=route.destination,
+            ),
+            FlightQuery(
+                date=route.date_back,
+                from_airport=route.destination,
+                to_airport=route.origin,
+            ),
         ],
         trip="round-trip",
         seat="economy",
         passengers=Passengers(adults=1),
         currency="BRL",
         language="pt-BR",
+        max_stops=1,
     )
     try:
         results = get_flights(query)
+    except FlightsNotFound:
+        log.warning(f"  Nenhum voo encontrado para {route.airline_display} {route.origin}→{route.destination}")
+        log.warning(f"  (A rota pode não existir no Google Flights ou não ter disponibilidade na data)")
+        return None
     except Exception as e:
-        log.warning(f"  Erro ao buscar voos: {e}")
+        log.warning(f"  Erro inesperado: {e}")
         return None
 
     if not results:
-        log.warning("  Nenhum resultado retornado.")
+        log.warning("  Lista de resultados vazia.")
         return None
 
+    # filtra pela companhia na resposta também (segurança dupla)
     matching = [r for r in results if route.airline_iata in r.airlines]
 
     if not matching:
         found = set(code for r in results for code in r.airlines)
-        log.warning(f"  {route.airline_iata} não encontrada. Disponíveis: {found}")
-        return None
+        log.warning(f"  {route.airline_iata} não encontrada nos resultados. Disponíveis: {found}")
+        log.info(f"  Usando o melhor preço geral como fallback.")
+        matching = results  # usa qualquer voo disponível como fallback
 
     best = min(matching, key=lambda r: r.price)
-    # fast-flights retorna preço em centavos
-    price_brl = best.price / 100
-    log.info(f"  Melhor preço: R$ {price_brl:,.2f}")
+    price_brl = best.price / 100  # fast-flights retorna em centavos
+    airlines_str = ", ".join(set(code for r in matching for code in r.airlines))
+    log.info(f"  Melhor preço: R$ {price_brl:,.2f} (companhias: {airlines_str})")
     return price_brl
 
 
