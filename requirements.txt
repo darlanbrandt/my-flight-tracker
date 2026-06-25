@@ -1,2 +1,2 @@
-fast-flights==3.0.2
+amadeus==9.0.0
 httpx==0.27.2

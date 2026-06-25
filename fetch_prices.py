@@ -1,6 +1,6 @@
 """
 fetch_prices.py
-Busca preços no Google Flights via fast-flights e salva no Supabase.
+Busca preços via Amadeus Flight Offers Search API e salva no Supabase.
 Roda via GitHub Actions todo dia às 09:00 UTC (06:00 Brasília).
 """
 
@@ -11,7 +11,7 @@ from datetime import date
 from dataclasses import dataclass
 
 import httpx
-from fast_flights import create_query, get_flights, Passengers, FlightQuery, FlightsNotFound
+from amadeus import Client, ResponseError
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,71 +23,82 @@ log = logging.getLogger(__name__)
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_KEY"]  # service role key
 
-HEADERS = {
+SUPABASE_HEADERS = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
     "Content-Type": "application/json",
     "Prefer": "resolution=merge-duplicates,return=minimal",
 }
 
+amadeus = Client(
+    client_id=os.environ["AMADEUS_CLIENT_ID"],
+    client_secret=os.environ["AMADEUS_CLIENT_SECRET"],
+)
+
 @dataclass
 class Route:
     airline_display: str   # nome exibido no app e no banco
-    airline_name: str      # nome como aparece no Google Flights (para filtrar)
+    airline_iata: str      # código IATA da companhia (para filtrar resultados)
     origin: str
     destination: str
     date_out: str          # YYYY-MM-DD
     date_back: str         # YYYY-MM-DD
-    max_stops: int = 1     # 1 cobre voos com 1 conexão (ex: GRU→BOG→IAD)
 
 ROUTES: list[Route] = [
-    Route("Arajet",   "Arajet",            "GRU", "EWR", "2026-11-19", "2026-11-28"),
-    Route("Avianca",  "Avianca",            "GRU", "IAD", "2026-11-19", "2026-11-28"),
-    Route("Avianca",  "Avianca",            "GIG", "IAD", "2026-11-19", "2026-11-28"),
-    Route("American", "American",           "GIG", "JFK", "2026-11-19", "2026-11-28"),
+    Route("Arajet",   "DM", "GRU", "EWR", "2026-11-19", "2026-11-28"),
+    Route("Avianca",  "AV", "GRU", "IAD", "2026-11-19", "2026-11-28"),
+    Route("Avianca",  "AV", "GIG", "IAD", "2026-11-19", "2026-11-28"),
+    Route("American", "AA", "GIG", "JFK", "2026-11-19", "2026-11-28"),
 ]
 
 
 def fetch_best_price(route: Route) -> float | None:
     log.info(f"Buscando {route.airline_display} {route.origin}→{route.destination} ...")
-    query = create_query(
-        flights=[
-            FlightQuery(date=route.date_out,  from_airport=route.origin,      to_airport=route.destination),
-            FlightQuery(date=route.date_back, from_airport=route.destination,  to_airport=route.origin),
-        ],
-        trip="round-trip",
-        seat="economy",
-        passengers=Passengers(adults=1),
-        currency="BRL",
-        language="pt-BR",
-        max_stops=route.max_stops,
-    )
     try:
-        results = get_flights(query)
-    except FlightsNotFound:
-        log.warning(f"  Nenhum voo encontrado para {route.airline_display} {route.origin}→{route.destination}")
-        log.warning(f"  (A rota pode não existir no Google Flights ou não ter disponibilidade na data)")
-        return None
-    except Exception as e:
-        log.warning(f"  Erro inesperado: {e}")
+        response = amadeus.shopping.flight_offers_search.get(
+            originLocationCode=route.origin,
+            destinationLocationCode=route.destination,
+            departureDate=route.date_out,
+            returnDate=route.date_back,
+            adults=1,
+            currencyCode="BRL",
+            max=50,
+        )
+    except ResponseError as e:
+        log.warning(f"  Erro Amadeus: {e}")
         return None
 
-    if not results:
-        log.warning("  Lista de resultados vazia.")
+    offers = response.data
+    if not offers:
+        log.warning(f"  Nenhuma oferta encontrada.")
         return None
 
-    log.info(f"  {len(results)} resultado(s) encontrado(s).")
-    # filtra pelo nome da companhia como aparece no Google Flights
-    matching = [r for r in results if route.airline_name in r.airlines]
+    log.info(f"  {len(offers)} oferta(s) recebida(s).")
+
+    # Filtra ofertas onde todos os segmentos são operados pela companhia alvo
+    def is_target_airline(offer: dict) -> bool:
+        for itinerary in offer["itineraries"]:
+            for segment in itinerary["segments"]:
+                # carrierCode é o código IATA do voo marketing; operatingCarrierCode é o operador real
+                carrier = segment.get("operating", {}).get("carrierCode") or segment["carrierCode"]
+                if carrier != route.airline_iata:
+                    return False
+        return True
+
+    matching = [o for o in offers if is_target_airline(o)]
 
     if not matching:
-        found = set(name for r in results for name in r.airlines)
-        log.warning(f"  '{route.airline_name}' não encontrada. Disponíveis: {found}")
+        found = set()
+        for o in offers:
+            for itin in o["itineraries"]:
+                for seg in itin["segments"]:
+                    found.add(seg["carrierCode"])
+        log.warning(f"  '{route.airline_iata}' não encontrada. Disponíveis: {found}")
         log.warning(f"  Pulando — não salvar preço de outra companhia como {route.airline_display}.")
         return None
 
-    best = min(matching, key=lambda r: r.price)
-    price_brl = best.price / 100  # fast-flights retorna em centavos
+    best = min(matching, key=lambda o: float(o["price"]["grandTotal"]))
+    price_brl = float(best["price"]["grandTotal"])
     log.info(f"  Melhor preço: R$ {price_brl:,.2f}")
     return price_brl
 
@@ -112,7 +123,7 @@ def upsert_to_supabase(route: Route, price_out: float, price_back: float) -> boo
     try:
         resp = httpx.post(
             f"{SUPABASE_URL}/rest/v1/flight_prices",
-            headers=HEADERS,
+            headers=SUPABASE_HEADERS,
             json=payload,
             timeout=15,
         )
