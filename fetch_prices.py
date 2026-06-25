@@ -1,14 +1,16 @@
 """
 fetch_prices.py
-Busca preços via SerpAPI (Google Flights) e salva no Supabase.
-Roda via GitHub Actions de segunda a sexta às 09:00 UTC (06:00 Brasília).
+Busca preços via proxy SerpAPI (serpapi.talordata.net) e salva no Supabase.
+Roda via GitHub Actions todo dia às 09:00 UTC (06:00 Brasília).
 """
 
 import os
 import sys
+import json
 import logging
 from datetime import date
 from dataclasses import dataclass
+from urllib.parse import urlencode
 
 import httpx
 
@@ -30,12 +32,16 @@ SUPABASE_HEADERS = {
     "Prefer": "resolution=merge-duplicates,return=minimal",
 }
 
-SERPAPI_URL = "https://serpapi.com/search.json"
+PROXY_URL = "https://serpapi.talordata.net/request"
+PROXY_HEADERS = {
+    "Authorization": f"Bearer {SERPAPI_KEY}",
+    "Content-Type": "application/x-www-form-urlencoded",
+}
 
 @dataclass
 class Route:
-    airline_display: str   # nome exibido no app e no banco
-    airline_name: str      # nome como aparece no Google Flights
+    airline_display: str
+    airline_name: str      # nome como aparece nos resultados
     origin: str
     destination: str
     date_out: str          # YYYY-MM-DD
@@ -49,36 +55,56 @@ ROUTES: list[Route] = [
 ]
 
 
+def build_google_flights_url(route: Route) -> str:
+    params = urlencode({
+        "engine":        "google_flights",
+        "departure_id":  route.origin,
+        "arrival_id":    route.destination,
+        "outbound_date": route.date_out,
+        "return_date":   route.date_back,
+        "currency":      "BRL",
+        "hl":            "en",
+        "type":          "1",
+        "max_stops":     "1",
+    })
+    return f"https://serpapi.com/search.json?{params}"
+
+
 def fetch_best_price(route: Route) -> float | None:
     log.info(f"Buscando {route.airline_display} {route.origin}→{route.destination} ...")
+    target_url = build_google_flights_url(route)
+    log.info(f"  URL alvo: {target_url}")
+
     try:
-        resp = httpx.get(SERPAPI_URL, params={
-            "engine":        "google_flights",
-            "departure_id":  route.origin,
-            "arrival_id":    route.destination,
-            "outbound_date": route.date_out,
-            "return_date":   route.date_back,
-            "currency":      "BRL",
-            "hl":            "pt",
-            "type":          "1",   # round trip
-            "max_stops":     "1",
-            "api_key":       SERPAPI_KEY,
-        }, timeout=30)
+        resp = httpx.post(
+            PROXY_URL,
+            headers=PROXY_HEADERS,
+            content=urlencode({"url": target_url, "json": "1"}).encode(),
+            timeout=30,
+        )
         resp.raise_for_status()
     except Exception as e:
         log.warning(f"  Erro na requisição: {e}")
         return None
 
-    data = resp.json()
+    try:
+        data = resp.json()
+    except Exception:
+        log.warning(f"  Resposta não é JSON. Primeiros 500 chars: {resp.text[:500]}")
+        return None
+
+    # Log da estrutura de topo para entender o formato
+    log.info(f"  Chaves na resposta: {list(data.keys())}")
 
     if "error" in data:
-        log.warning(f"  SerpAPI error: {data['error']}")
+        log.warning(f"  Erro da API: {data['error']}")
         return None
 
     all_offers = data.get("best_flights", []) + data.get("other_flights", [])
 
     if not all_offers:
-        log.warning("  Nenhuma oferta retornada.")
+        log.warning(f"  Nenhuma oferta em best_flights/other_flights. Resposta completa:")
+        log.warning(json.dumps(data, ensure_ascii=False)[:1000])
         return None
 
     log.info(f"  {len(all_offers)} oferta(s) recebida(s).")
@@ -98,7 +124,6 @@ def fetch_best_price(route: Route) -> float | None:
             for leg in o.get("flights", [])
         )
         log.warning(f"  '{route.airline_name}' não encontrada. Disponíveis: {found}")
-        log.warning(f"  Pulando — não salvar preço de outra companhia como {route.airline_display}.")
         return None
 
     best = min(matching, key=lambda o: o["price"])
