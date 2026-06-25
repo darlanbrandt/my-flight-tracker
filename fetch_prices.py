@@ -44,7 +44,7 @@ ROUTES: list[Route] = [
     Route("Arajet",   "Arajet",            "GRU", "EWR", "2026-11-19", "2026-11-28"),
     Route("Avianca",  "Avianca",            "GRU", "IAD", "2026-11-19", "2026-11-28"),
     Route("Avianca",  "Avianca",            "GIG", "IAD", "2026-11-19", "2026-11-28"),
-    Route("American", "American Airlines",  "GIG", "JFK", "2026-11-19", "2026-11-28"),
+    Route("American", "American",           "GIG", "JFK", "2026-11-19", "2026-11-28"),
 ]
 
 
@@ -59,7 +59,7 @@ def fetch_best_price(route: Route) -> float | None:
         seat="economy",
         passengers=Passengers(adults=1),
         currency="BRL",
-        language="pt-BR",
+        language="en-US",
         max_stops=route.max_stops,
     )
     try:
