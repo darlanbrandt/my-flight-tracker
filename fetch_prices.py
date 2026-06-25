@@ -38,7 +38,7 @@ class Route:
     destination: str
     date_out: str          # YYYY-MM-DD
     date_back: str         # YYYY-MM-DD
-    max_stops: int = 2     # 2 cobre voos com 1 conexão (ex: GRU→BOG→IAD)
+    max_stops: int = 1     # 1 cobre voos com 1 conexão (ex: GRU→BOG→IAD)
 
 ROUTES: list[Route] = [
     Route("Arajet",   "Arajet",            "GRU", "EWR", "2026-11-19", "2026-11-28"),
@@ -76,6 +76,7 @@ def fetch_best_price(route: Route) -> float | None:
         log.warning("  Lista de resultados vazia.")
         return None
 
+    log.info(f"  {len(results)} resultado(s) encontrado(s).")
     # filtra pelo nome da companhia como aparece no Google Flights
     matching = [r for r in results if route.airline_name in r.airlines]
 
