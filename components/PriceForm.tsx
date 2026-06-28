@@ -8,7 +8,7 @@ import {
 } from '@/lib/supabase'
 
 type Props = {
-  onSaved: () => void
+  onSaved: (msg?: string) => void
   editing: FlightPrice | null
   onCancelEdit: () => void
 }
@@ -118,10 +118,11 @@ export default function PriceForm({ onSaved, editing, onCancelEdit }: Props) {
       setPriceBack('')
       setNotes('')
       setDate(todayBR())
+      onSaved('Registro salvo com sucesso!')
     } else {
       onCancelEdit()
+      onSaved('Registro atualizado!')
     }
-    onSaved()
   }
 
   const isEdit = !!editing

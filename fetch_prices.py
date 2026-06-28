@@ -95,10 +95,12 @@ def fetch_best_price(route: Route) -> float | None:
     log.info(f"  {len(all_offers)} oferta(s) recebida(s).")
 
     def is_target(offer: dict) -> bool:
-        for leg in offer.get("flights", []):
-            if route.airline_name not in leg.get("airline", ""):
-                return False
-        return True
+        # Basta que a companhia alvo opere pelo menos um segmento
+        # (voos com conexão normalmente têm segmentos de outras companhias em codeshare)
+        return any(
+            route.airline_name in leg.get("airline", "")
+            for leg in offer.get("flights", [])
+        )
 
     matching = [o for o in all_offers if is_target(o)]
 

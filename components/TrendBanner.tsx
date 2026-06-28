@@ -29,12 +29,12 @@ export default function TrendBanner() {
 
       if (!data || data.length === 0) return
 
-      // Agrupa por rota, mantendo os 8 mais recentes
+      // Agrupa por rota
       const grouped: Record<string, typeof data> = {}
       for (const row of data) {
         const key = `${row.airline}|${row.origin}|${row.destination}`
         if (!grouped[key]) grouped[key] = []
-        if (grouped[key].length < 8) grouped[key].push(row)
+        grouped[key].push(row)
       }
 
       const found: TrendAlert[] = []
@@ -43,8 +43,16 @@ export default function TrendBanner() {
         if (rows.length < 3) continue // poucos dados
 
         const [airline, origin, destination] = key.split('|')
+        // rows já vem ordenado por data desc (query .order date desc)
         const today = rows[0].total
-        const prev  = rows.slice(1)
+        const todayDate = new Date(rows[0].date)
+
+        // média dos registros dos últimos 7 dias calendário (excluindo hoje)
+        const cutoff = new Date(todayDate)
+        cutoff.setDate(cutoff.getDate() - 7)
+        const prev = rows.slice(1).filter(r => new Date(r.date) >= cutoff)
+        if (prev.length === 0) continue
+
         const avg7d = prev.reduce((sum, r) => sum + r.total, 0) / prev.length
         const changePercent = ((today - avg7d) / avg7d) * 100
 
@@ -98,7 +106,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 12,
-    overflow: 'hidden',
     minWidth: 0,
   },
   arrow: {

@@ -6,12 +6,15 @@ import { format, parseISO } from 'date-fns'
 
 type AirlineFilter = 'all' | Airline
 
+import type { ToastType } from '@/components/FlightApp'
+
 type Props = {
   data: FlightPrice[]
   routeFilter: RouteKey
   isNarrow: boolean
   canEdit: boolean
   onRefresh: () => void
+  onToast: (message: string, type: ToastType) => void
   onEdit: (row: FlightPrice) => void
 }
 
@@ -31,7 +34,7 @@ function getMinByAirline(data: FlightPrice[]) {
   return map
 }
 
-export default function PriceTable({ data, routeFilter, isNarrow, canEdit, onRefresh, onEdit }: Props) {
+export default function PriceTable({ data, routeFilter, isNarrow, canEdit, onRefresh, onToast, onEdit }: Props) {
   const [deleting, setDeleting]   = useState<string | null>(null)
   const [filter, setFilter]       = useState<AirlineFilter>('all')
   const [sortDir, setSortDir]     = useState<'asc' | 'desc'>('desc')
@@ -53,9 +56,14 @@ export default function PriceTable({ data, routeFilter, isNarrow, canEdit, onRef
   async function handleDelete(id: string) {
     if (!confirm('Deletar este registro?')) return
     setDeleting(id)
-    await supabase.from('flight_prices').delete().eq('id', id)
+    const { error } = await supabase.from('flight_prices').delete().eq('id', id)
     setDeleting(null)
-    onRefresh()
+    if (error) {
+      onToast('Erro ao deletar registro.', 'error')
+    } else {
+      onToast('Registro deletado.', 'success')
+      onRefresh()
+    }
   }
 
   return (

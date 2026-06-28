@@ -3,12 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase, FlightPrice, Origin, Destination, RouteKey } from '@/lib/supabase'
-import PriceForm  from '@/components/PriceForm'
-import PriceChart from '@/components/PriceChart'
-import PriceTable from '@/components/PriceTable'
-import StatsBar   from '@/components/StatsBar'
-import LoginForm  from '@/components/LoginForm'
+import PriceForm   from '@/components/PriceForm'
+import PriceChart  from '@/components/PriceChart'
+import PriceTable  from '@/components/PriceTable'
+import StatsBar    from '@/components/StatsBar'
+import LoginForm   from '@/components/LoginForm'
 import TrendBanner from '@/components/TrendBanner'
+import Toast       from '@/components/Toast'
+
+export type ToastType = 'success' | 'error' | 'info'
+export type ToastMsg  = { id: number; message: string; type: ToastType }
 
 export default function FlightApp() {
   const [user, setUser]           = useState<User | null | undefined>(undefined)
@@ -19,7 +23,15 @@ export default function FlightApp() {
   const [theme, setTheme]         = useState<'dark' | 'light'>('light')
   const [routeFilter, setRoute]   = useState<RouteKey>('all')
   const [isNarrow, setIsNarrow]   = useState(false)
+  const [toasts, setToasts]       = useState<ToastMsg[]>([])
   const containerRef              = useRef<HTMLDivElement>(null)
+  const toastId                   = useRef(0)
+
+  const showToast = useCallback((message: string, type: ToastType = 'info') => {
+    const id = ++toastId.current
+    setToasts(t => [...t, { id, message, type }])
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3500)
+  }, [])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -68,6 +80,14 @@ export default function FlightApp() {
     ? data
     : data.filter(r => `${r.origin}-${r.destination}` === routeFilter)
 
+  const handleRouteChange = (value: string) => {
+    setRoute(value)
+    if (value !== 'all') {
+      const count = data.filter(r => `${r.origin}-${r.destination}` === value).length
+      if (count === 0) showToast('Nenhum registro encontrado para esta rota.', 'info')
+    }
+  }
+
   const routeLabel = routeFilter === 'all'
     ? 'todas as rotas'
     : (() => {
@@ -81,6 +101,7 @@ export default function FlightApp() {
 
   return (
     <div ref={containerRef} style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+      <Toast toasts={toasts} />
       <div style={styles.container}>
 
         {/* ── Header ── */}
@@ -106,7 +127,7 @@ export default function FlightApp() {
                 textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
                 Rota
               </p>
-              <select value={routeFilter} onChange={e => setRoute(e.target.value)}
+              <select value={routeFilter} onChange={e => handleRouteChange(e.target.value)}
                 style={{ minWidth: 150 }}>
                 <option value="all">Todas as rotas</option>
                 {routes.map(r => {
@@ -152,7 +173,7 @@ export default function FlightApp() {
         <div style={isNarrow ? styles.topBlockNarrow : (isLoggedIn ? styles.topBlock : styles.topBlockReadonly)}>
           {isLoggedIn && (
             <PriceForm
-              onSaved={fetchData}
+              onSaved={(msg) => { fetchData(); showToast(msg ?? 'Registro salvo!', 'success') }}
               editing={editing}
               onCancelEdit={() => setEditing(null)}
             />
@@ -168,6 +189,7 @@ export default function FlightApp() {
           isNarrow={isNarrow}
           canEdit={isLoggedIn}
           onRefresh={fetchData}
+          onToast={showToast}
           onEdit={row => {
             setEditing(row)
             window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -194,6 +216,12 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottom: '1px solid var(--border)',
     paddingBottom: 20,
     marginBottom: 28,
+    position: 'sticky',
+    top: 0,
+    zIndex: 10,
+    background: 'var(--bg)',
+    paddingTop: 28,
+    marginTop: -28,
   },
   brand: {
     display: 'flex',
@@ -234,29 +262,18 @@ const styles: Record<string, React.CSSProperties> = {
     gridTemplateColumns: '460px minmax(0,1fr)',
     gap: 20,
     alignItems: 'stretch',
-    position: 'sticky',
-    top: 0,
-    zIndex: 5,
-    background: 'var(--bg)',
-    padding: '16px 0',
-    marginTop: -16,
+    marginTop: 20,
   },
   topBlockReadonly: {
     display: 'grid',
     gridTemplateColumns: 'minmax(0,1fr)',
     gap: 20,
-    position: 'sticky',
-    top: 0,
-    zIndex: 5,
-    background: 'var(--bg)',
-    padding: '16px 0',
-    marginTop: -16,
+    marginTop: 20,
   },
   topBlockNarrow: {
     display: 'flex',
     flexDirection: 'column',
     gap: 20,
-    padding: '16px 0',
-    marginTop: -16,
+    marginTop: 20,
   },
 }
