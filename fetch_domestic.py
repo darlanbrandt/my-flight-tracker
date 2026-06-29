@@ -37,7 +37,7 @@ log = logging.getLogger(__name__)
 
 SUPABASE_URL    = os.environ["SUPABASE_URL"]
 SUPABASE_KEY    = os.environ["SUPABASE_KEY"]
-TALORDATA_TOKEN = os.environ["TALORDATA_TOKEN"]
+SERPAPI_KEY_DOMESTIC = os.environ["SERPAPI_KEY_DOMESTIC"]
 
 DATE_OUT  = os.environ["DOMESTIC_DATE_OUT"]   # saída de FLN
 DATE_BACK = os.environ["DOMESTIC_DATE_BACK"]  # volta para FLN
@@ -49,11 +49,7 @@ SUPABASE_HEADERS = {
     "Prefer": "resolution=merge-duplicates,return=minimal",
 }
 
-TALORDATA_URL = "https://serpapi.talordata.net/serp/v1/request"
-TALORDATA_HEADERS = {
-    "Authorization": f"Bearer {TALORDATA_TOKEN}",
-    "Content-Type": "application/x-www-form-urlencoded",
-}
+SERPAPI_URL = "https://serpapi.com/search.json"
 
 
 @dataclass
@@ -95,7 +91,7 @@ def fetch_best_price(route: Route) -> float | None:
     label = f"{route.airline_display} {route.search_origin}→{route.search_dest} [{route.trip_type}]"
     log.info(f"Buscando {label} ...")
 
-    form: dict = {
+    params: dict = {
         "engine":        "google_flights",
         "departure_id":  route.search_origin,
         "arrival_id":    route.search_dest,
@@ -105,17 +101,17 @@ def fetch_best_price(route: Route) -> float | None:
         "gl":            "br",
         "google_domain": "google.com.br",
         "max_stops":     "0",
-        "json":          "1",
+        "api_key":       SERPAPI_KEY_DOMESTIC,
     }
 
     if route.search_return:
-        form["type"] = "1"           # round trip
-        form["return_date"] = route.search_return
+        params["type"] = "1"         # round trip
+        params["return_date"] = route.search_return
     else:
-        form["type"] = "2"           # one-way
+        params["type"] = "2"         # one-way
 
     try:
-        resp = httpx.post(TALORDATA_URL, headers=TALORDATA_HEADERS, data=form, timeout=30)
+        resp = httpx.get(SERPAPI_URL, params=params, timeout=30)
         resp.raise_for_status()
     except Exception as e:
         log.warning(f"  Erro na requisição: {e}")
@@ -127,8 +123,8 @@ def fetch_best_price(route: Route) -> float | None:
         log.warning(f"  Resposta não é JSON: {resp.text[:500]}")
         return None
 
-    # A resposta vem envelopada em {"code": 0, "data": {...}}
-    payload = data.get("data", data)
+    # serpapi.com retorna direto; Talordata envolvia em {"data": {...}}
+    payload = data.get("data", data) if "data" in data else data
 
     if "error" in payload:
         log.warning(f"  Erro da API: {payload['error']}")
@@ -150,7 +146,7 @@ def fetch_best_price(route: Route) -> float | None:
         # campo é "flight" (não "flights") nesta API
         return any(
             route.airline_match.lower() in leg.get("airline", "").lower()
-            for leg in offer.get("flight", [])
+            for leg in offer.get("flights", [])
         )
 
     def parse_price(offer: dict) -> float | None:
