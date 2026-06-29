@@ -43,6 +43,10 @@ TALORDATA_TOKEN = os.environ["TALORDATA_TOKEN"]
 DATE_OUT  = os.environ["DOMESTIC_DATE_OUT"]
 DATE_BACK = os.environ["DOMESTIC_DATE_BACK"]
 
+# Controle de quais partes rodam (default: ambas)
+RUN_ONEWAY     = os.environ.get("RUN_ONEWAY",     "true").lower() == "true"
+RUN_ROUNDTRIP  = os.environ.get("RUN_ROUNDTRIP",  "true").lower() == "true"
+
 SUPABASE_HEADERS = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -285,49 +289,55 @@ def main():
     success, failed = 0, 0
 
     # ── RapidAPI: outbound + return ───────────────────────────────────────────
-    log.info("--- One-way (RapidAPI) ---")
-    for search in build_oneway_searches():
-        results = fetch_oneway_results(search)
-        if not results:
-            expected = 2 if "GIG" not in (search.origin, search.destination) else 1
-            failed += expected
-            continue
-
-        for airline_display, airline_match in ONEWAY_AIRLINES:
-            if "GIG" in (search.origin, search.destination) and airline_display == "Latam":
+    if RUN_ONEWAY:
+        log.info("--- One-way (RapidAPI) ---")
+        for search in build_oneway_searches():
+            results = fetch_oneway_results(search)
+            if not results:
+                expected = 2 if "GIG" not in (search.origin, search.destination) else 1
+                failed += expected
                 continue
 
-            price = best_oneway_price(results, airline_match)
-            log.info(f"  {airline_display}: {'R$ {:,.2f}'.format(price) if price else 'não encontrado'}")
+            for airline_display, airline_match in ONEWAY_AIRLINES:
+                if "GIG" in (search.origin, search.destination) and airline_display == "Latam":
+                    continue
 
+                price = best_oneway_price(results, airline_match)
+                log.info(f"  {airline_display}: {'R$ {:,.2f}'.format(price) if price else 'não encontrado'}")
+
+                if price is None:
+                    failed += 1
+                    continue
+
+                if search.trip_type == "outbound":
+                    ok = upsert(airline_display, search.origin, search.destination, "outbound", price, None)
+                else:
+                    ok = upsert(airline_display, search.destination, search.origin, "return", None, price)
+
+                if ok:
+                    success += 1
+                else:
+                    failed += 1
+    else:
+        log.info("--- One-way (RapidAPI) ignorado ---")
+
+    # ── Talordata: round_trip ─────────────────────────────────────────────────
+    if RUN_ROUNDTRIP:
+        log.info("--- Round-trip (Talordata) ---")
+        for route in ROUNDTRIP_ROUTES:
+            price = fetch_roundtrip_price(route)
             if price is None:
                 failed += 1
                 continue
 
-            if search.trip_type == "outbound":
-                ok = upsert(airline_display, search.origin, search.destination, "outbound", price, None)
-            else:
-                ok = upsert(airline_display, search.destination, search.origin, "return", None, price)
-
+            half = round(price / 2, 2)
+            ok = upsert(route.airline_display, route.search_origin, route.search_dest, "round_trip", half, round(price - half, 2))
             if ok:
                 success += 1
             else:
                 failed += 1
-
-    # ── Talordata: round_trip ─────────────────────────────────────────────────
-    log.info("--- Round-trip (Talordata) ---")
-    for route in ROUNDTRIP_ROUTES:
-        price = fetch_roundtrip_price(route)
-        if price is None:
-            failed += 1
-            continue
-
-        half = round(price / 2, 2)
-        ok = upsert(route.airline_display, route.search_origin, route.search_dest, "round_trip", half, round(price - half, 2))
-        if ok:
-            success += 1
-        else:
-            failed += 1
+    else:
+        log.info("--- Round-trip (Talordata) ignorado ---")
 
     log.info(f"=== Concluído: {success} salvos, {failed} falhas ===")
     if failed > 0 and success == 0:

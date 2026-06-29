@@ -1,9 +1,8 @@
-name: Fetch Domestic Round-Trip (Talordata)
+name: Fetch Domestic One-Way (RapidAPI)
 
 on:
   schedule:
-    - cron: "0 10 * * 1-6"  # 10:00 UTC = 07:00 Brasília, seg–sáb
-    - cron: "0 19 * * 1-6"  # 19:00 UTC = 16:00 Brasília, seg–sáb
+    - cron: "0 10 * * 1,4"  # 10:00 UTC = 07:00 Brasília, seg e qui (~34 req/mês)
   workflow_dispatch:
     inputs:
       date_out:
@@ -17,7 +16,7 @@ on:
 
 jobs:
   fetch:
-    name: Buscar round-trip (Talordata)
+    name: Buscar one-way outbound/return (RapidAPI)
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -37,9 +36,9 @@ jobs:
         env:
           SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY:        ${{ secrets.SUPABASE_KEY }}
-          TALORDATA_TOKEN:     ${{ secrets.TALORDATA_TOKEN }}
+          RAPIDAPI_KEY:        ${{ secrets.RAPIDAPI_KEY }}
           DOMESTIC_DATE_OUT:   ${{ inputs.date_out  || vars.DOMESTIC_DATE_OUT }}
           DOMESTIC_DATE_BACK:  ${{ inputs.date_back || vars.DOMESTIC_DATE_BACK }}
-          RUN_ONEWAY:          "false"
-          RUN_ROUNDTRIP:       "true"
+          RUN_ONEWAY:          "true"
+          RUN_ROUNDTRIP:       "false"
         run: python fetch_domestic.py
