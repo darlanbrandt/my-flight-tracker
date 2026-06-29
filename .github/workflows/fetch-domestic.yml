@@ -2,7 +2,8 @@ name: Fetch Domestic Prices
 
 on:
   schedule:
-    - cron: "0 10 * * 1-6"  # 10:00 UTC = 07:00 Brasília, seg–sáb (250 req/mês)
+    - cron: "0 10 * * 1-6"  # 10:00 UTC = 07:00 Brasília, seg–sáb
+    - cron: "0 19 * * 1-6"  # 19:00 UTC = 16:00 Brasília, seg–sáb
   workflow_dispatch:
     inputs:
       date_out:
