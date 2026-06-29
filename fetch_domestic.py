@@ -1,21 +1,23 @@
 """
 fetch_domestic.py
-Busca tarifas de ida e volta via Talordata (SerpAPI proxy) e salva no Supabase.
-Roda via GitHub Actions seg–sáb às 10:00 UTC (07:00 Brasília) — 3 req/dia, ~78/mês.
+Busca tarifas domésticas via Skyscanner RapidAPI e salva no Supabase.
+Roda via GitHub Actions seg–sáb às 10:00 UTC (07:00 Brasília).
 
 Datas configuradas via GitHub Actions vars:
   DOMESTIC_DATE_OUT  — dia de saída de FLN (ex: 2026-11-18)
   DOMESTIC_DATE_BACK — dia de volta para FLN (ex: 2026-11-29)
 
-3 pesquisas por dia (round_trip):
-  FLN↔GRU  Gol
-  FLN↔GRU  Latam
-  FLN↔GIG  Gol
+6 pesquisas one-way por dia + round_trip derivado:
+  FLN→GRU  Gol   (outbound)
+  FLN→GRU  Latam (outbound)
+  FLN→GIG  Gol   (outbound)
+  GRU→FLN  Gol   (return)
+  GRU→FLN  Latam (return)
+  GIG→FLN  Gol   (return)
 """
 
 import os
 import sys
-import json
 import logging
 from datetime import date
 from dataclasses import dataclass
@@ -31,7 +33,7 @@ log = logging.getLogger(__name__)
 
 SUPABASE_URL    = os.environ["SUPABASE_URL"]
 SUPABASE_KEY    = os.environ["SUPABASE_KEY"]
-TALORDATA_TOKEN = os.environ["TALORDATA_TOKEN"]
+RAPIDAPI_KEY    = os.environ["RAPIDAPI_KEY"]
 
 DATE_OUT  = os.environ["DOMESTIC_DATE_OUT"]   # saída de FLN
 DATE_BACK = os.environ["DOMESTIC_DATE_BACK"]  # volta para FLN
@@ -43,51 +45,52 @@ SUPABASE_HEADERS = {
     "Prefer": "resolution=merge-duplicates,return=minimal",
 }
 
-TALORDATA_URL     = "https://serpapi.talordata.net/serp/v1/request"
-TALORDATA_HEADERS = {
-    "Authorization": f"Bearer {TALORDATA_TOKEN}",
-    "Content-Type": "application/x-www-form-urlencoded",
+SKYSCANNER_URL  = "https://skyscanner-flights4.p.rapidapi.com/api/v1/search"
+SKYSCANNER_HEADERS = {
+    "x-rapidapi-key":  RAPIDAPI_KEY,
+    "x-rapidapi-host": "skyscanner-flights4.p.rapidapi.com",
 }
 
 
 @dataclass
-class Route:
-    airline_display: str   # 'Gol' ou 'Latam' (como salvar no banco)
-    airline_match: str     # substring para filtrar na resposta da API
-    search_origin: str
-    search_dest: str
-    db_origin: str
-    db_destination: str
+class OneWayRoute:
+    airline_display: str   # 'Gol' ou 'Latam'
+    airline_match: str     # substring para filtrar carrier name
+    origin: str
+    destination: str
+    date: str
+    trip_type: str         # 'outbound' ou 'return'
 
 
-ROUTES: list[Route] = [
-    Route("Gol",   "Gol",   "FLN", "GRU", "GRU", "FLN"),
-    Route("Latam", "LATAM", "FLN", "GRU", "GRU", "FLN"),
-    Route("Gol",   "Gol",   "FLN", "GIG", "GIG", "FLN"),
-]
+def build_routes() -> list[OneWayRoute]:
+    return [
+        OneWayRoute("Gol",   "GOL",   "FLN", "GRU", DATE_OUT,  "outbound"),
+        OneWayRoute("Latam", "LATAM", "FLN", "GRU", DATE_OUT,  "outbound"),
+        OneWayRoute("Gol",   "GOL",   "FLN", "GIG", DATE_OUT,  "outbound"),
+        OneWayRoute("Gol",   "GOL",   "GRU", "FLN", DATE_BACK, "return"),
+        OneWayRoute("Latam", "LATAM", "GRU", "FLN", DATE_BACK, "return"),
+        OneWayRoute("Gol",   "GOL",   "GIG", "FLN", DATE_BACK, "return"),
+    ]
 
 
-def fetch_best_price(route: Route) -> float | None:
-    label = f"{route.airline_display} FLN↔{route.search_dest}"
+def fetch_best_price(route: OneWayRoute) -> float | None:
+    label = f"{route.airline_display} {route.origin}→{route.destination} ({route.trip_type})"
     log.info(f"Buscando {label} ...")
 
-    form: dict = {
-        "engine":        "google_flights",
-        "departure_id":  route.search_origin,
-        "arrival_id":    route.search_dest,
-        "outbound_date": DATE_OUT,
-        "return_date":   DATE_BACK,
-        "type":          "1",          # round trip
-        "currency":      "BRL",
-        "hl":            "pt",
-        "gl":            "br",
-        "google_domain": "google.com.br",
-        "max_stops":     "0",
-        "json":          "1",
+    params = {
+        "origin":      route.origin,
+        "destination": route.destination,
+        "date":        route.date,
+        "limit":       "20",
+        "adults":      "1",
+        "currency":    "BRL",
+        "cabin":       "economy",
+        "market":      "BR",
+        "locale":      "pt-BR",
     }
 
     try:
-        resp = httpx.post(TALORDATA_URL, headers=TALORDATA_HEADERS, data=form, timeout=30)
+        resp = httpx.get(SKYSCANNER_URL, headers=SKYSCANNER_HEADERS, params=params, timeout=30)
         resp.raise_for_status()
     except Exception as e:
         log.warning(f"  Erro na requisição: {e}")
@@ -99,76 +102,70 @@ def fetch_best_price(route: Route) -> float | None:
         log.warning(f"  Resposta não é JSON: {resp.text[:500]}")
         return None
 
-    # Talordata envolve a resposta em {"code": 0, "data": {...}}
-    payload = data.get("data", data)
-
-    if "error" in payload:
-        log.warning(f"  Erro da API: {payload['error']}")
+    if not data.get("success"):
+        log.warning(f"  API retornou erro: {data}")
         return None
 
-    all_offers = (
-        payload.get("best_flights", []) +
-        payload.get("other_flights", []) +
-        payload.get("other_departing_flights", [])
-    )
-
-    if not all_offers:
-        log.warning(f"  Nenhuma oferta. Resposta: {json.dumps(data, ensure_ascii=False)[:800]}")
+    results = data.get("results", [])
+    if not results:
+        log.warning(f"  Nenhuma oferta recebida.")
         return None
 
-    log.info(f"  {len(all_offers)} oferta(s) recebida(s).")
+    log.info(f"  {len(results)} oferta(s) recebida(s).")
 
-    def is_target(offer: dict) -> bool:
-        return any(
-            route.airline_match.lower() in leg.get("airline", "").lower()
-            for leg in offer.get("flight", [])
-        )
+    def is_direct(result: dict) -> bool:
+        legs = result.get("legs", [])
+        return bool(legs) and legs[0].get("stops", 1) == 0
 
-    def parse_price(offer: dict) -> float | None:
-        raw = offer.get("price")
-        if raw is None:
-            return None
-        if isinstance(raw, (int, float)):
-            return float(raw)
-        s = str(raw).strip()
-        if s.startswith("$") and not s.startswith("R$"):
-            log.warning(f"  Preço em USD: {s}")
-        clean = s.replace("R$", "").replace("$", "").replace(".", "").replace(",", ".").strip()
-        try:
-            return float(clean)
-        except ValueError:
-            return None
+    def is_target_airline(result: dict) -> bool:
+        carriers = result.get("carriers", [])
+        return any(route.airline_match in c.upper() for c in carriers)
 
-    target_offers = [o for o in all_offers if is_target(o)]
-    matching = [(o, parse_price(o)) for o in target_offers]
-    matching = [(o, p) for o, p in matching if p is not None]
+    matching = [
+        r for r in results
+        if is_direct(r) and is_target_airline(r)
+    ]
 
     if not matching:
-        if target_offers:
-            log.warning(f"  '{route.airline_match}' encontrada mas sem preço:")
-            log.warning(json.dumps(target_offers[0], ensure_ascii=False)[:600])
-        else:
-            found = {leg.get("airline", "?") for o in all_offers for leg in o.get("flight", [])}
-            log.warning(f"  '{route.airline_match}' não encontrada. Disponíveis: {found}")
+        all_carriers = {c for r in results for c in r.get("carriers", [])}
+        direct_count = sum(1 for r in results if is_direct(r))
+        log.warning(
+            f"  '{route.airline_match}' não encontrada (direto). "
+            f"Diretos: {direct_count}/{len(results)}. "
+            f"Carriers: {all_carriers}"
+        )
         return None
 
-    _, price = min(matching, key=lambda x: x[1])
-    log.info(f"  Melhor preço: R$ {price:,.2f}")
+    best = min(matching, key=lambda r: r.get("price_raw", float("inf")))
+    price = best.get("price_raw")
+    if price is None:
+        log.warning(f"  Oferta sem price_raw: {best}")
+        return None
+
+    price = float(price)
+    log.info(f"  Melhor preço direto: R$ {price:,.2f}")
     return price
 
 
-def upsert(route: Route, price: float) -> bool:
+def upsert(
+    airline: str,
+    origin: str,
+    destination: str,
+    trip_type: str,
+    price_out: float | None,
+    price_back: float | None,
+) -> bool:
     today = date.today().isoformat()
-    half = round(price / 2, 2)
     payload = {
         "date":        today,
-        "airline":     route.airline_display,
-        "origin":      route.db_origin,
-        "destination": route.db_destination,
-        "trip_type":   "round_trip",
-        "price_out":   half,
-        "price_back":  round(price - half, 2),
+        "airline":     airline,
+        "origin":      origin,
+        "destination": destination,
+        "trip_type":   trip_type,
+        "price_out":   price_out,
+        "price_back":  price_back,
     }
+    label = f"{airline} {origin}↔{destination} [{trip_type}]"
 
     try:
         resp = httpx.post(
@@ -179,7 +176,8 @@ def upsert(route: Route, price: float) -> bool:
             timeout=15,
         )
         if resp.status_code in (200, 201):
-            log.info(f"  Salvo: R$ {price:,.2f}")
+            total = (price_out or 0) + (price_back or 0)
+            log.info(f"  Salvo {label}: R$ {total:,.2f}")
             return True
         log.error(f"  Supabase {resp.status_code}: {resp.text}")
         return False
@@ -190,14 +188,56 @@ def upsert(route: Route, price: float) -> bool:
 
 def main():
     log.info(f"=== Doméstico — {date.today().isoformat()} | saída {DATE_OUT} volta {DATE_BACK} ===")
+
+    routes = build_routes()
+    prices: dict[tuple[str, str, str], float] = {}  # (airline, origin→dest key, trip_type) → price
+
     success, failed = 0, 0
 
-    for route in ROUTES:
+    # ── one-way searches ────────────────────────────────────────────────────────
+    for route in routes:
         price = fetch_best_price(route)
         if price is None:
             failed += 1
             continue
-        if upsert(route, price):
+
+        key = (route.airline_display, route.origin, route.destination, route.trip_type)
+        prices[key] = price
+
+        # For DB: outbound → origin=route.origin, dest=route.destination, price_out=price
+        #         return   → origin=route.destination, dest=route.origin, price_back=price
+        # (convention: origin/destination represent the outbound direction, GRU/FLN)
+        if route.trip_type == "outbound":
+            ok = upsert(route.airline_display, route.origin, route.destination, "outbound", price, None)
+        else:  # return
+            ok = upsert(route.airline_display, route.destination, route.origin, "return", None, price)
+
+        if ok:
+            success += 1
+        else:
+            failed += 1
+
+    # ── round_trip derived from outbound + return ────────────────────────────────
+    round_trip_combos = [
+        ("Gol",   "FLN", "GRU"),
+        ("Latam", "FLN", "GRU"),
+        ("Gol",   "FLN", "GIG"),
+    ]
+
+    for airline, out_orig, out_dest in round_trip_combos:
+        out_key  = (airline, out_orig, out_dest, "outbound")
+        back_key = (airline, out_dest, out_orig, "return")
+
+        price_out  = prices.get(out_key)
+        price_back = prices.get(back_key)
+
+        if price_out is None and price_back is None:
+            log.warning(f"  round_trip {airline} {out_orig}↔{out_dest}: nenhum preço disponível, pulando.")
+            failed += 1
+            continue
+
+        ok = upsert(airline, out_orig, out_dest, "round_trip", price_out, price_back)
+        if ok:
             success += 1
         else:
             failed += 1
