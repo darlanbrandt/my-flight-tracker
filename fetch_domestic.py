@@ -160,16 +160,22 @@ def fetch_best_price(route: Route) -> float | None:
         except ValueError:
             return None
 
-    matching = [(o, parse_price(o)) for o in all_offers if is_target(o)]
+    target_offers = [o for o in all_offers if is_target(o)]
+    matching = [(o, parse_price(o)) for o in target_offers]
     matching = [(o, p) for o, p in matching if p is not None]
 
     if not matching:
-        found = {
-            leg.get("airline", "?")
-            for o in all_offers
-            for leg in o.get("flight", [])
-        }
-        log.warning(f"  '{route.airline_match}' não encontrada ou sem preço. Disponíveis: {found}")
+        if target_offers:
+            # Tem oferta mas sem preço — loga a estrutura do primeiro para diagnóstico
+            log.warning(f"  '{route.airline_match}' encontrada mas sem preço. Primeiro resultado:")
+            log.warning(json.dumps(target_offers[0], ensure_ascii=False)[:600])
+        else:
+            found = {
+                leg.get("airline", "?")
+                for o in all_offers
+                for leg in o.get("flight", [])
+            }
+            log.warning(f"  '{route.airline_match}' não encontrada. Disponíveis: {found}")
         return None
 
     _, price = min(matching, key=lambda x: x[1])
