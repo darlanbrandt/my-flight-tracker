@@ -3,7 +3,16 @@ name: Fetch Domestic Prices
 on:
   schedule:
     - cron: "0 10 * * *"    # 10:00 UTC = 07:00 Brasília
-  workflow_dispatch:         # permite rodar manualmente pelo GitHub
+  workflow_dispatch:
+    inputs:
+      date_out:
+        description: "Data de saída de FLN (YYYY-MM-DD)"
+        required: false
+        default: ""
+      date_back:
+        description: "Data de volta para FLN (YYYY-MM-DD)"
+        required: false
+        default: ""
 
 jobs:
   fetch:
@@ -28,6 +37,7 @@ jobs:
           SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY:        ${{ secrets.SUPABASE_KEY }}
           TALORDATA_TOKEN:     ${{ secrets.TALORDATA_TOKEN }}
-          DOMESTIC_DATE_OUT:   ${{ secrets.DOMESTIC_DATE_OUT }}
-          DOMESTIC_DATE_BACK:  ${{ secrets.DOMESTIC_DATE_BACK }}
+          # Input manual tem prioridade; cai para a var do repositório se vazio
+          DOMESTIC_DATE_OUT:   ${{ inputs.date_out  || vars.DOMESTIC_DATE_OUT }}
+          DOMESTIC_DATE_BACK:  ${{ inputs.date_back || vars.DOMESTIC_DATE_BACK }}
         run: python fetch_domestic.py
