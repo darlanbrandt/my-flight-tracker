@@ -125,11 +125,14 @@ def fetch_best_price(route: Route) -> float | None:
         log.warning(f"  Resposta não é JSON: {resp.text[:500]}")
         return None
 
-    if "error" in data:
-        log.warning(f"  Erro da API: {data['error']}")
+    # A resposta vem envelopada em {"code": 0, "data": {...}}
+    payload = data.get("data", data)
+
+    if "error" in payload:
+        log.warning(f"  Erro da API: {payload['error']}")
         return None
 
-    all_offers = data.get("best_flights", []) + data.get("other_flights", [])
+    all_offers = payload.get("best_flights", []) + payload.get("other_flights", [])
 
     if not all_offers:
         log.warning(f"  Nenhuma oferta. Resposta: {json.dumps(data, ensure_ascii=False)[:800]}")
@@ -138,24 +141,38 @@ def fetch_best_price(route: Route) -> float | None:
     log.info(f"  {len(all_offers)} oferta(s) recebida(s).")
 
     def is_target(offer: dict) -> bool:
+        # campo é "flight" (não "flights") nesta API
         return any(
-            route.airline_match in leg.get("airline", "")
-            for leg in offer.get("flights", [])
+            route.airline_match.lower() in leg.get("airline", "").lower()
+            for leg in offer.get("flight", [])
         )
 
-    matching = [o for o in all_offers if is_target(o)]
+    def parse_price(offer: dict) -> float | None:
+        raw = offer.get("price")
+        if raw is None:
+            return None
+        # pode vir como número ou como string "R$ 770"
+        if isinstance(raw, (int, float)):
+            return float(raw)
+        clean = str(raw).replace("R$", "").replace(".", "").replace(",", ".").strip()
+        try:
+            return float(clean)
+        except ValueError:
+            return None
+
+    matching = [(o, parse_price(o)) for o in all_offers if is_target(o)]
+    matching = [(o, p) for o, p in matching if p is not None]
 
     if not matching:
         found = {
             leg.get("airline", "?")
             for o in all_offers
-            for leg in o.get("flights", [])
+            for leg in o.get("flight", [])
         }
-        log.warning(f"  '{route.airline_match}' não encontrada. Disponíveis: {found}")
+        log.warning(f"  '{route.airline_match}' não encontrada ou sem preço. Disponíveis: {found}")
         return None
 
-    best = min(matching, key=lambda o: o["price"])
-    price = float(best["price"])
+    _, price = min(matching, key=lambda x: x[1])
     log.info(f"  Melhor preço: R$ {price:,.2f}")
     return price
 
