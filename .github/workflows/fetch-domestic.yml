@@ -37,6 +37,7 @@ jobs:
           SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY:        ${{ secrets.SUPABASE_KEY }}
           RAPIDAPI_KEY:        ${{ secrets.RAPIDAPI_KEY }}
+          TALORDATA_TOKEN:     ${{ secrets.TALORDATA_TOKEN }}
           # Input manual tem prioridade; cai para a var do repositório se vazio
           DOMESTIC_DATE_OUT:   ${{ inputs.date_out  || vars.DOMESTIC_DATE_OUT }}
           DOMESTIC_DATE_BACK:  ${{ inputs.date_back || vars.DOMESTIC_DATE_BACK }}
