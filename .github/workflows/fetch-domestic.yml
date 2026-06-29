@@ -27,7 +27,7 @@ jobs:
         env:
           SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY:        ${{ secrets.SUPABASE_KEY }}
-          SERPAPI_KEY:         ${{ secrets.SERPAPI_KEY }}
+          TALORDATA_TOKEN:     ${{ secrets.TALORDATA_TOKEN }}
           DOMESTIC_DATE_OUT:   ${{ vars.DOMESTIC_DATE_OUT }}
           DOMESTIC_DATE_BACK:  ${{ vars.DOMESTIC_DATE_BACK }}
         run: python fetch_domestic.py

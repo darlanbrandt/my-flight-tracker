@@ -35,9 +35,9 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-SUPABASE_URL = os.environ["SUPABASE_URL"]
-SUPABASE_KEY = os.environ["SUPABASE_KEY"]
-SERPAPI_KEY  = os.environ["SERPAPI_KEY"]
+SUPABASE_URL    = os.environ["SUPABASE_URL"]
+SUPABASE_KEY    = os.environ["SUPABASE_KEY"]
+TALORDATA_TOKEN = os.environ["TALORDATA_TOKEN"]
 
 DATE_OUT  = os.environ["DOMESTIC_DATE_OUT"]   # saída de FLN
 DATE_BACK = os.environ["DOMESTIC_DATE_BACK"]  # volta para FLN
@@ -49,7 +49,11 @@ SUPABASE_HEADERS = {
     "Prefer": "resolution=merge-duplicates,return=minimal",
 }
 
-SERPAPI_URL = "https://serpapi.com/search.json"
+TALORDATA_URL = "https://serpapi.talordata.net/request"
+TALORDATA_HEADERS = {
+    "Authorization": f"Bearer {TALORDATA_TOKEN}",
+    "Content-Type": "application/x-www-form-urlencoded",
+}
 
 
 @dataclass
@@ -91,7 +95,7 @@ def fetch_best_price(route: Route) -> float | None:
     label = f"{route.airline_display} {route.search_origin}→{route.search_dest} [{route.trip_type}]"
     log.info(f"Buscando {label} ...")
 
-    params: dict = {
+    form: dict = {
         "engine":        "google_flights",
         "departure_id":  route.search_origin,
         "arrival_id":    route.search_dest,
@@ -99,17 +103,17 @@ def fetch_best_price(route: Route) -> float | None:
         "currency":      "BRL",
         "hl":            "pt",
         "gl":            "br",
-        "api_key":       SERPAPI_KEY,
+        "json":          "1",
     }
 
     if route.search_return:
-        params["type"] = "1"           # round trip
-        params["return_date"] = route.search_return
+        form["type"] = "1"           # round trip
+        form["return_date"] = route.search_return
     else:
-        params["type"] = "2"           # one-way
+        form["type"] = "2"           # one-way
 
     try:
-        resp = httpx.get(SERPAPI_URL, params=params, timeout=30)
+        resp = httpx.post(TALORDATA_URL, headers=TALORDATA_HEADERS, data=form, timeout=30)
         resp.raise_for_status()
     except Exception as e:
         log.warning(f"  Erro na requisição: {e}")
