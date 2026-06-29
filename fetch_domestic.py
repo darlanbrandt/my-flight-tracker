@@ -103,6 +103,7 @@ def fetch_best_price(route: Route) -> float | None:
         "currency":      "BRL",
         "hl":            "pt",
         "gl":            "br",
+        "google_domain": "google.com.br",
         "max_stops":     "0",
         "json":          "1",
     }
