@@ -37,8 +37,8 @@ log = logging.getLogger(__name__)
 
 SUPABASE_URL    = os.environ["SUPABASE_URL"]
 SUPABASE_KEY    = os.environ["SUPABASE_KEY"]
-RAPIDAPI_KEY    = os.environ["RAPIDAPI_KEY"]
-TALORDATA_TOKEN = os.environ["TALORDATA_TOKEN"]
+RAPIDAPI_KEY    = os.environ.get("RAPIDAPI_KEY", "")
+TALORDATA_TOKEN = os.environ.get("TALORDATA_TOKEN", "")
 
 DATE_OUT  = os.environ["DOMESTIC_DATE_OUT"]
 DATE_BACK = os.environ["DOMESTIC_DATE_BACK"]
