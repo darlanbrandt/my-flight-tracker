@@ -212,6 +212,7 @@ def upsert(route: Route, price: float) -> bool:
             f"{SUPABASE_URL}/rest/v1/domestic_prices_auto",
             headers=SUPABASE_HEADERS,
             json=payload,
+            params={"on_conflict": "date,airline,origin,destination,trip_type"},
             timeout=15,
         )
         if resp.status_code in (200, 201):
