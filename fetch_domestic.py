@@ -49,7 +49,7 @@ SUPABASE_HEADERS = {
     "Prefer": "resolution=merge-duplicates,return=minimal",
 }
 
-TALORDATA_URL = "https://serpapi.talordata.net/request"
+TALORDATA_URL = "https://serpapi.talordata.net/serp/v1/request"
 TALORDATA_HEADERS = {
     "Authorization": f"Bearer {TALORDATA_TOKEN}",
     "Content-Type": "application/x-www-form-urlencoded",
