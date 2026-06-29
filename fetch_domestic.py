@@ -186,7 +186,7 @@ def upsert(route: Route, price: float) -> bool:
 
     try:
         resp = httpx.post(
-            f"{SUPABASE_URL}/rest/v1/domestic_prices",
+            f"{SUPABASE_URL}/rest/v1/domestic_prices_auto",
             headers=SUPABASE_HEADERS,
             json=payload,
             timeout=15,
