@@ -50,6 +50,8 @@
   --arajet:   #e8433a;
   --avianca:  #f5a623;
   --american: #2f7fd1;
+  --gol:      #FF6600;
+  --latam:    #1B0088;
 }
 
 /* ─── Reset ─────────────────────────────────────────────────────── */
@@ -91,6 +93,8 @@ body {
 .badge-arajet   { background: var(--arajet-dim);   color: var(--arajet);   }
 .badge-avianca  { background: var(--avianca-dim);  color: var(--avianca);  }
 .badge-american { background: var(--american-dim); color: var(--american); }
+.badge-gol      { background: rgba(255,102,0,0.12);  color: var(--gol);   }
+.badge-latam    { background: rgba(27,0,136,0.12);   color: var(--latam); }
 
 /* ─── Airport chips ─────────────────────────────────────────────── */
 .chip {
