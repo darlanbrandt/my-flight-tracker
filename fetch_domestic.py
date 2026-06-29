@@ -103,6 +103,8 @@ def fetch_best_price(route: Route) -> float | None:
         "currency":      "BRL",
         "hl":            "pt",
         "gl":            "br",
+        "google_domain": "google.com.br",
+        "max_stops":     "0",
         "json":          "1",
     }
 
@@ -132,7 +134,11 @@ def fetch_best_price(route: Route) -> float | None:
         log.warning(f"  Erro da API: {payload['error']}")
         return None
 
-    all_offers = payload.get("best_flights", []) + payload.get("other_flights", [])
+    all_offers = (
+        payload.get("best_flights", []) +
+        payload.get("other_flights", []) +
+        payload.get("other_departing_flights", [])
+    )
 
     if not all_offers:
         log.warning(f"  Nenhuma oferta. Resposta: {json.dumps(data, ensure_ascii=False)[:800]}")
@@ -151,10 +157,12 @@ def fetch_best_price(route: Route) -> float | None:
         raw = offer.get("price")
         if raw is None:
             return None
-        # pode vir como número ou como string "R$ 770"
         if isinstance(raw, (int, float)):
             return float(raw)
-        clean = str(raw).replace("R$", "").replace(".", "").replace(",", ".").strip()
+        s = str(raw).strip()
+        if s.startswith("$") and not s.startswith("R$"):
+            log.warning(f"  Preço em USD detectado: {s} — verifique configuração de moeda no Talordata")
+        clean = s.replace("R$", "").replace("$", "").replace(".", "").replace(",", ".").strip()
         try:
             return float(clean)
         except ValueError:
@@ -212,6 +220,7 @@ def upsert(route: Route, price: float) -> bool:
             f"{SUPABASE_URL}/rest/v1/domestic_prices_auto",
             headers=SUPABASE_HEADERS,
             json=payload,
+            params={"on_conflict": "date,airline,origin,destination,trip_type"},
             timeout=15,
         )
         if resp.status_code in (200, 201):
