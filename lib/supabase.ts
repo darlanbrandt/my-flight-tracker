@@ -63,30 +63,13 @@ export const TRIP_TYPE_LABELS: Record<TripType, string> = {
   round_trip:  'Ida e volta',
 }
 
-export const DOMESTIC_AIRPORTS: Record<string, string> = {
-  GRU: 'São Paulo — Guarulhos',
-  CGH: 'São Paulo — Congonhas',
-  VCP: 'Campinas — Viracopos',
-  GIG: 'Rio de Janeiro — Galeão',
-  SDU: 'Rio de Janeiro — Santos Dumont',
-  BSB: 'Brasília',
-  CNF: 'Belo Horizonte — Confins',
-  PLU: 'Belo Horizonte — Pampulha',
-  SSA: 'Salvador',
-  REC: 'Recife',
-  FOR: 'Fortaleza',
-  MAO: 'Manaus',
-  POA: 'Porto Alegre',
-  CWB: 'Curitiba',
+export const DOMESTIC_ORIGINS: Record<string, string> = {
   FLN: 'Florianópolis',
-  BEL: 'Belém',
-  MCZ: 'Maceió',
-  NAT: 'Natal',
-  AJU: 'Aracaju',
-  JPA: 'João Pessoa',
-  SLZ: 'São Luís',
-  CGB: 'Cuiabá',
-  CGR: 'Campo Grande',
+}
+
+export const DOMESTIC_DESTINATIONS: Record<string, string> = {
+  GRU: 'São Paulo — Guarulhos',
+  GIG: 'Rio de Janeiro — Galeão',
 }
 
 export type DomesticPrice = {

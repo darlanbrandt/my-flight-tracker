@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import {
   supabase, DomesticPrice, DomesticPriceInsert,
-  DomesticAirline, TripType, TRIP_TYPE_LABELS, DOMESTIC_AIRPORTS,
+  DomesticAirline, TripType, TRIP_TYPE_LABELS,
+  DOMESTIC_ORIGINS, DOMESTIC_DESTINATIONS,
 } from '@/lib/supabase'
 
 type Props = {
@@ -38,13 +39,14 @@ function formatBRLInput(v: number | null): string {
   return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-const AIRPORTS = Object.keys(DOMESTIC_AIRPORTS) as string[]
+const ORIGINS = Object.keys(DOMESTIC_ORIGINS)
+const DESTINATIONS = Object.keys(DOMESTIC_DESTINATIONS)
 
 export default function DomesticForm({ onSaved, editing, onCancelEdit }: Props) {
   const [date, setDate]           = useState(todayBR)
   const [airline, setAirline]     = useState<DomesticAirline>('Gol')
-  const [origin, setOrigin]       = useState('GRU')
-  const [destination, setDest]    = useState('SDU')
+  const [origin, setOrigin]       = useState('FLN')
+  const [destination, setDest]    = useState('GRU')
   const [tripType, setTripType]   = useState<TripType>('round_trip')
   const [priceOut, setPriceOut]   = useState('')
   const [priceBack, setPriceBack] = useState('')
@@ -65,8 +67,8 @@ export default function DomesticForm({ onSaved, editing, onCancelEdit }: Props) 
     } else {
       setDate(todayBR())
       setAirline('Gol')
-      setOrigin('GRU')
-      setDest('SDU')
+      setOrigin('FLN')
+      setDest('GRU')
       setTripType('round_trip')
       setPriceOut('')
       setPriceBack('')
@@ -183,8 +185,8 @@ export default function DomesticForm({ onSaved, editing, onCancelEdit }: Props) 
         <label style={styles.label}>
           Origem
           <select value={origin} onChange={e => setOrigin(e.target.value)}>
-            {AIRPORTS.map(code => (
-              <option key={code} value={code}>{code} — {DOMESTIC_AIRPORTS[code]}</option>
+            {ORIGINS.map(code => (
+              <option key={code} value={code}>{code} — {DOMESTIC_ORIGINS[code]}</option>
             ))}
           </select>
         </label>
@@ -192,8 +194,8 @@ export default function DomesticForm({ onSaved, editing, onCancelEdit }: Props) 
         <label style={styles.label}>
           Destino
           <select value={destination} onChange={e => setDest(e.target.value)}>
-            {AIRPORTS.map(code => (
-              <option key={code} value={code}>{code} — {DOMESTIC_AIRPORTS[code]}</option>
+            {DESTINATIONS.map(code => (
+              <option key={code} value={code}>{code} — {DOMESTIC_DESTINATIONS[code]}</option>
             ))}
           </select>
         </label>
