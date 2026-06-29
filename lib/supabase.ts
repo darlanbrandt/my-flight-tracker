@@ -65,11 +65,14 @@ export const TRIP_TYPE_LABELS: Record<TripType, string> = {
 
 export const DOMESTIC_ORIGINS: Record<string, string> = {
   FLN: 'Florianópolis',
+  GRU: 'São Paulo — Guarulhos',
+  GIG: 'Rio de Janeiro — Galeão',
 }
 
 export const DOMESTIC_DESTINATIONS: Record<string, string> = {
   GRU: 'São Paulo — Guarulhos',
   GIG: 'Rio de Janeiro — Galeão',
+  FLN: 'Florianópolis',
 }
 
 export type DomesticPrice = {
