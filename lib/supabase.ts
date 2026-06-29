@@ -48,6 +48,72 @@ export const DESTINATIONS_BY_AIRLINE: Record<Airline, Destination[]> = {
 
 export type RouteKey = 'all' | string
 
+// ── Domestic ──────────────────────────────────────────────────────────────────
+export type DomesticAirline = 'Gol' | 'Latam'
+export type TripType = 'outbound' | 'return' | 'round_trip'
+
+export const DOMESTIC_AIRLINE_COLORS: Record<DomesticAirline, string> = {
+  Gol:   '#FF6600',
+  Latam: '#1B0088',
+}
+
+export const TRIP_TYPE_LABELS: Record<TripType, string> = {
+  outbound:    'Só ida',
+  return:      'Só volta',
+  round_trip:  'Ida e volta',
+}
+
+export const DOMESTIC_AIRPORTS: Record<string, string> = {
+  GRU: 'São Paulo — Guarulhos',
+  CGH: 'São Paulo — Congonhas',
+  VCP: 'Campinas — Viracopos',
+  GIG: 'Rio de Janeiro — Galeão',
+  SDU: 'Rio de Janeiro — Santos Dumont',
+  BSB: 'Brasília',
+  CNF: 'Belo Horizonte — Confins',
+  PLU: 'Belo Horizonte — Pampulha',
+  SSA: 'Salvador',
+  REC: 'Recife',
+  FOR: 'Fortaleza',
+  MAO: 'Manaus',
+  POA: 'Porto Alegre',
+  CWB: 'Curitiba',
+  FLN: 'Florianópolis',
+  BEL: 'Belém',
+  MCZ: 'Maceió',
+  NAT: 'Natal',
+  AJU: 'Aracaju',
+  JPA: 'João Pessoa',
+  SLZ: 'São Luís',
+  CGB: 'Cuiabá',
+  CGR: 'Campo Grande',
+}
+
+export type DomesticPrice = {
+  id: string
+  date: string
+  airline: DomesticAirline
+  origin: string
+  destination: string
+  trip_type: TripType
+  price_out: number | null
+  price_back: number | null
+  total: number
+  notes: string | null
+  created_at: string
+}
+
+export type DomesticPriceInsert = {
+  date: string
+  airline: DomesticAirline
+  origin: string
+  destination: string
+  trip_type: TripType
+  price_out?: number | null
+  price_back?: number | null
+  notes?: string
+}
+
 export type FlightPrice = {
   id: string
   date: string

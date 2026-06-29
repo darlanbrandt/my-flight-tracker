@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase, FlightPrice, Origin, Destination, RouteKey } from '@/lib/supabase'
-import PriceForm   from '@/components/PriceForm'
-import PriceChart  from '@/components/PriceChart'
-import PriceTable  from '@/components/PriceTable'
-import StatsBar    from '@/components/StatsBar'
-import LoginForm   from '@/components/LoginForm'
-import TrendBanner from '@/components/TrendBanner'
-import Toast       from '@/components/Toast'
+import PriceForm       from '@/components/PriceForm'
+import PriceChart      from '@/components/PriceChart'
+import PriceTable      from '@/components/PriceTable'
+import StatsBar        from '@/components/StatsBar'
+import LoginForm       from '@/components/LoginForm'
+import TrendBanner     from '@/components/TrendBanner'
+import Toast           from '@/components/Toast'
+import DomesticSection from '@/components/DomesticSection'
 
 export type ToastType = 'success' | 'error' | 'info'
 export type ToastMsg  = { id: number; message: string; type: ToastType }
@@ -24,6 +25,7 @@ export default function FlightApp() {
   const [routeFilter, setRoute]   = useState<RouteKey>('all')
   const [isNarrow, setIsNarrow]   = useState(false)
   const [toasts, setToasts]       = useState<ToastMsg[]>([])
+  const [tab, setTab]             = useState<'internacional' | 'domestico'>('internacional')
   const containerRef              = useRef<HTMLDivElement>(null)
   const toastId                   = useRef(0)
 
@@ -122,20 +124,22 @@ export default function FlightApp() {
           </div>
 
           <div style={styles.controls}>
-            <div>
-              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)',
-                textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
-                Rota
-              </p>
-              <select value={routeFilter} onChange={e => handleRouteChange(e.target.value)}
-                style={{ minWidth: 150 }}>
-                <option value="all">Todas as rotas</option>
-                {routes.map(r => {
-                  const [o, d] = r.split('-') as [Origin, Destination]
-                  return <option key={r} value={r}>{o} → {d}</option>
-                })}
-              </select>
-            </div>
+            {tab === 'internacional' && (
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)',
+                  textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
+                  Rota
+                </p>
+                <select value={routeFilter} onChange={e => handleRouteChange(e.target.value)}
+                  style={{ minWidth: 150 }}>
+                  <option value="all">Todas as rotas</option>
+                  {routes.map(r => {
+                    const [o, d] = r.split('-') as [Origin, Destination]
+                    return <option key={r} value={r}>{o} → {d}</option>
+                  })}
+                </select>
+              </div>
+            )}
             <button
               className="btn-ghost"
               onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
@@ -166,35 +170,57 @@ export default function FlightApp() {
           </div>
         </header>
 
-        {/* ── Trend banner ── */}
-        <TrendBanner />
-
-        {/* ── Sticky top block: form (só logado) + chart ── */}
-        <div style={isNarrow ? styles.topBlockNarrow : (isLoggedIn ? styles.topBlock : styles.topBlockReadonly)}>
-          {isLoggedIn && (
-            <PriceForm
-              onSaved={(msg) => { fetchData(); showToast(msg ?? 'Registro salvo!', 'success') }}
-              editing={editing}
-              onCancelEdit={() => setEditing(null)}
-            />
-          )}
-          <PriceChart data={filteredData} routeLabel={routeLabel} isNarrow={isNarrow} />
+        {/* ── Tab switcher ── */}
+        <div style={styles.tabBar}>
+          <div className="segmented">
+            <button className={tab === 'internacional' ? 'active' : ''} onClick={() => setTab('internacional')}>
+              Internacional
+            </button>
+            <button className={tab === 'domestico' ? 'active' : ''} onClick={() => setTab('domestico')}>
+              Doméstico
+            </button>
+          </div>
         </div>
 
-        <StatsBar data={filteredData} isNarrow={isNarrow} />
+        {tab === 'internacional' ? (
+          <>
+            {/* ── Trend banner ── */}
+            <TrendBanner />
 
-        <PriceTable
-          data={data}
-          routeFilter={routeFilter}
-          isNarrow={isNarrow}
-          canEdit={isLoggedIn}
-          onRefresh={fetchData}
-          onToast={showToast}
-          onEdit={row => {
-            setEditing(row)
-            window.scrollTo({ top: 0, behavior: 'smooth' })
-          }}
-        />
+            {/* ── top block: form (só logado) + chart ── */}
+            <div style={isNarrow ? styles.topBlockNarrow : (isLoggedIn ? styles.topBlock : styles.topBlockReadonly)}>
+              {isLoggedIn && (
+                <PriceForm
+                  onSaved={(msg) => { fetchData(); showToast(msg ?? 'Registro salvo!', 'success') }}
+                  editing={editing}
+                  onCancelEdit={() => setEditing(null)}
+                />
+              )}
+              <PriceChart data={filteredData} routeLabel={routeLabel} isNarrow={isNarrow} />
+            </div>
+
+            <StatsBar data={filteredData} isNarrow={isNarrow} />
+
+            <PriceTable
+              data={data}
+              routeFilter={routeFilter}
+              isNarrow={isNarrow}
+              canEdit={isLoggedIn}
+              onRefresh={fetchData}
+              onToast={showToast}
+              onEdit={row => {
+                setEditing(row)
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+              }}
+            />
+          </>
+        ) : (
+          <DomesticSection
+            isLoggedIn={isLoggedIn}
+            isNarrow={isNarrow}
+            onToast={showToast}
+          />
+        )}
 
       </div>
     </div>
@@ -256,6 +282,9 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'flex-end',
     gap: 10,
     flexWrap: 'wrap',
+  },
+  tabBar: {
+    marginBottom: 24,
   },
   topBlock: {
     display: 'grid',
