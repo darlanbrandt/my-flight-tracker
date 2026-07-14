@@ -8,6 +8,7 @@ import {
 } from '@/lib/supabase'
 
 type Props = {
+  tripName: string
   onSaved: (msg?: string) => void
   editing: DomesticPrice | null
   onCancelEdit: () => void
@@ -42,7 +43,7 @@ function formatBRLInput(v: number | null): string {
 const ORIGINS = Object.keys(DOMESTIC_ORIGINS)
 const DESTINATIONS = Object.keys(DOMESTIC_DESTINATIONS)
 
-export default function DomesticForm({ onSaved, editing, onCancelEdit }: Props) {
+export default function DomesticForm({ tripName, onSaved, editing, onCancelEdit }: Props) {
   const [date, setDate]           = useState(todayBR)
   const [airline, setAirline]     = useState<DomesticAirline>('Gol')
   const [origin, setOrigin]       = useState('FLN')
@@ -105,6 +106,7 @@ export default function DomesticForm({ onSaved, editing, onCancelEdit }: Props) 
 
     const payload: DomesticPriceInsert = {
       date: brToISO(date),
+      trip_name: editing ? (editing.trip_name ?? tripName) : tripName,
       airline,
       origin,
       destination,

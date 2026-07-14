@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { supabase, DomesticPrice, TripType } from '@/lib/supabase'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { supabase, DomesticPrice, TripType, TRIPS, DEFAULT_TRIP } from '@/lib/supabase'
 import DomesticForm     from '@/components/DomesticForm'
 import DomesticChart    from '@/components/DomesticChart'
 import DomesticStatsBar from '@/components/DomesticStatsBar'
@@ -19,6 +19,12 @@ export default function DomesticSection({ isLoggedIn, isNarrow, onToast }: Props
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<DomesticPrice | null>(null)
   const [tripType, setTripType] = useState<TripType>('round_trip')
+  const [trip, setTrip]       = useState(DEFAULT_TRIP)
+
+  const tripData = useMemo(
+    () => data.filter(r => (r.trip_name ?? DEFAULT_TRIP) === trip),
+    [data, trip],
+  )
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -34,6 +40,24 @@ export default function DomesticSection({ isLoggedIn, isNarrow, onToast }: Props
 
   return (
     <div>
+      {/* trip selector */}
+      <div style={styles.tripBar}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={styles.tripLabel}>Viagem:</span>
+          <div className="segmented">
+            {Object.entries(TRIPS).map(([key, label]) => (
+              <button
+                key={key}
+                className={trip === key ? 'active' : ''}
+                onClick={() => { setTrip(key); setEditing(null) }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* trip type selector for chart */}
       <div style={styles.tripBar}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -60,18 +84,19 @@ export default function DomesticSection({ isLoggedIn, isNarrow, onToast }: Props
       <div style={isNarrow ? styles.topNarrow : (isLoggedIn ? styles.topBlock : styles.topReadonly)}>
         {isLoggedIn && (
           <DomesticForm
+            tripName={trip}
             onSaved={msg => { fetchData(); onToast(msg ?? 'Registro salvo!', 'success') }}
             editing={editing}
             onCancelEdit={() => setEditing(null)}
           />
         )}
-        <DomesticChart data={data} tripType={tripType} isNarrow={isNarrow} />
+        <DomesticChart data={tripData} tripType={tripType} isNarrow={isNarrow} />
       </div>
 
-      <DomesticStatsBar data={data} isNarrow={isNarrow} />
+      <DomesticStatsBar data={tripData} isNarrow={isNarrow} />
 
       <DomesticTable
-        data={data}
+        data={tripData}
         isNarrow={isNarrow}
         canEdit={isLoggedIn}
         onRefresh={fetchData}
