@@ -66,18 +66,29 @@ export const TRIP_TYPE_LABELS: Record<TripType, string> = {
 export const DOMESTIC_ORIGINS: Record<string, string> = {
   FLN: 'Florianópolis',
   GRU: 'São Paulo — Guarulhos',
+  CGH: 'São Paulo — Congonhas',
   GIG: 'Rio de Janeiro — Galeão',
 }
 
 export const DOMESTIC_DESTINATIONS: Record<string, string> = {
   GRU: 'São Paulo — Guarulhos',
+  CGH: 'São Paulo — Congonhas',
   GIG: 'Rio de Janeiro — Galeão',
   FLN: 'Florianópolis',
+}
+
+export const DEFAULT_TRIP = 'novembro_2026'
+
+export const TRIPS: Record<string, string> = {
+  novembro_2026: '18–29 nov · GRU/GIG',
+  sp_outubro:    '10–11 out · CGH',
+  sp_novembro:   '31 out–2 nov · CGH',
 }
 
 export type DomesticPrice = {
   id: string
   date: string
+  trip_name: string
   airline: DomesticAirline
   origin: string
   destination: string
@@ -91,6 +102,7 @@ export type DomesticPrice = {
 
 export type DomesticPriceInsert = {
   date: string
+  trip_name?: string
   airline: DomesticAirline
   origin: string
   destination: string
