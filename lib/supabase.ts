@@ -79,7 +79,7 @@ export const TRIP_TYPE_LABELS: Record<TripType, string> = {
 const KNOWN_AIRLINE_COLORS: Record<string, string> = {
   // Brasil / América do Sul e Central
   'gol':        '#FF6600',
-  'latam':      '#1B0088',
+  'latam':      'var(--latam)',   // índigo no tema claro, tom mais claro no escuro
   'azul':       '#00a1e0',
   'arajet':     '#e8433a',
   'avianca':    '#f5a623',

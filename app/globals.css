@@ -45,14 +45,18 @@
   --american-dim: #e7f0fb;
 }
 
-/* ─── Airline colors (theme-independent) ───────────────────────── */
+/* ─── Airline colors ────────────────────────────────────────────── */
 :root {
   --arajet:   #e8433a;
   --avianca:  #f5a623;
   --american: #2f7fd1;
   --gol:      #FF6600;
-  --latam:    #1B0088;
 }
+
+/* Latam: índigo no claro; meio-termo índigo/roxo no escuro p/ contraste */
+:root,
+[data-theme="dark"]  { --latam: #4A35C8; }
+[data-theme="light"] { --latam: #1B0088; }
 
 /* ─── Reset ─────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
