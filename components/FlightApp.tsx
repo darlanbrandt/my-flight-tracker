@@ -51,9 +51,16 @@ export default function FlightApp() {
     setTrips(list)
     setTripId(prev => {
       if (prev !== null && list.some(t => t.id === prev)) return prev
+      const saved = Number(localStorage.getItem('selectedTripId'))
+      if (saved && list.some(t => t.id === saved)) return saved
       return list[0]?.id ?? null
     })
     setLoading(false)
+  }, [])
+
+  const selectTrip = useCallback((id: number) => {
+    setTripId(id)
+    localStorage.setItem('selectedTripId', String(id))
   }, [])
 
   useEffect(() => { fetchTrips() }, [fetchTrips])
@@ -142,7 +149,7 @@ export default function FlightApp() {
             {trips.length > 0 && (
               <select
                 value={tripId ?? ''}
-                onChange={e => setTripId(Number(e.target.value))}
+                onChange={e => selectTrip(Number(e.target.value))}
                 style={{ minWidth: 220, fontWeight: 600 }}
               >
                 {trips.map(t => (
