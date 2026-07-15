@@ -1,13 +1,13 @@
-name: Fetch Flight Prices
+name: Fetch SerpAPI
 
 on:
   schedule:
-    - cron: "0 9 * * *"    # 09:00 UTC = 06:00 Brasília
-  workflow_dispatch:        # permite rodar manualmente pelo GitHub
+    - cron: "0 9 * * *"     # 09:00 UTC = 06:00 Brasília, diário
+  workflow_dispatch:
 
 jobs:
   fetch:
-    name: Buscar e salvar preços
+    name: Buscas SerpAPI (tracked_searches)
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -27,5 +27,5 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
-        run: python fetch_prices.py
+          SERPAPI_KEY:  ${{ secrets.SERPAPI_KEY }}
+        run: python fetch.py --api serpapi
