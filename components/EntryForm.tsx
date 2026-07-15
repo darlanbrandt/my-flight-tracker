@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   supabase, Trip, Price, PriceInsert, TripType,
-  TRIP_TYPE_LABELS, AIRPORT_SUGGESTIONS,
+  TRIP_TYPE_LABELS, AIRPORT_SUGGESTIONS, AIRLINE_SUGGESTIONS,
 } from '@/lib/supabase'
 
 type Props = {
@@ -191,7 +191,9 @@ export default function EntryForm({ trip, knownAirlines, knownAirports, onSaved,
             required
           />
           <datalist id="airline-suggestions">
-            {knownAirlines.map(a => <option key={a} value={a} />)}
+            {Array.from(new Set([...knownAirlines, ...AIRLINE_SUGGESTIONS])).map(a => (
+              <option key={a} value={a} />
+            ))}
           </datalist>
         </label>
 
