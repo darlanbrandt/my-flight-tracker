@@ -2,15 +2,16 @@
 
 import { useState, useEffect } from 'react'
 import {
-  supabase, DomesticPrice, DomesticPriceInsert,
-  DomesticAirline, TripType, TRIP_TYPE_LABELS,
-  DOMESTIC_ORIGINS, DOMESTIC_DESTINATIONS,
+  supabase, Trip, Price, PriceInsert, TripType,
+  TRIP_TYPE_LABELS, AIRPORT_SUGGESTIONS,
 } from '@/lib/supabase'
 
 type Props = {
-  tripName: string
+  trip: Trip
+  knownAirlines: string[]     // companhias já registradas na viagem (sugestões)
+  knownAirports: string[]     // aeroportos já registrados na viagem
   onSaved: (msg?: string) => void
-  editing: DomesticPrice | null
+  editing: Price | null
   onCancelEdit: () => void
 }
 
@@ -40,14 +41,11 @@ function formatBRLInput(v: number | null): string {
   return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-const ORIGINS = Object.keys(DOMESTIC_ORIGINS)
-const DESTINATIONS = Object.keys(DOMESTIC_DESTINATIONS)
-
-export default function DomesticForm({ tripName, onSaved, editing, onCancelEdit }: Props) {
+export default function EntryForm({ trip, knownAirlines, knownAirports, onSaved, editing, onCancelEdit }: Props) {
   const [date, setDate]           = useState(todayBR)
-  const [airline, setAirline]     = useState<DomesticAirline>('Gol')
-  const [origin, setOrigin]       = useState('FLN')
-  const [destination, setDest]    = useState('GRU')
+  const [airline, setAirline]     = useState('')
+  const [origin, setOrigin]       = useState('')
+  const [destination, setDest]    = useState('')
   const [tripType, setTripType]   = useState<TripType>('round_trip')
   const [priceOut, setPriceOut]   = useState('')
   const [priceBack, setPriceBack] = useState('')
@@ -67,15 +65,16 @@ export default function DomesticForm({ tripName, onSaved, editing, onCancelEdit 
       setNotes(editing.notes ?? '')
     } else {
       setDate(todayBR())
-      setAirline('Gol')
-      setOrigin('FLN')
-      setDest('GRU')
+      setAirline(knownAirlines[0] ?? '')
+      setOrigin(knownAirports[0] ?? '')
+      setDest(knownAirports[1] ?? '')
       setTripType('round_trip')
       setPriceOut('')
       setPriceBack('')
       setNotes('')
     }
-  }, [editing])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing, trip.id])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -85,18 +84,20 @@ export default function DomesticForm({ tripName, onSaved, editing, onCancelEdit 
       setError('Data inválida. Use DD/MM/AAAA.')
       return
     }
+    if (!airline.trim()) {
+      setError('Informe a companhia aérea.')
+      return
+    }
+    if (!/^[A-Za-z]{3}$/.test(origin) || !/^[A-Za-z]{3}$/.test(destination)) {
+      setError('Origem e destino devem ser códigos IATA de 3 letras (ex: FLN).')
+      return
+    }
 
     const out  = parseBRL(priceOut)
     const back = parseBRL(priceBack)
 
-    if (tripType === 'outbound' && out === null) {
-      setError('Informe o valor da ida.')
-      return
-    }
-    if (tripType === 'return' && back === null) {
-      setError('Informe o valor da volta.')
-      return
-    }
+    if (tripType === 'outbound' && out === null)  { setError('Informe o valor da ida.');   return }
+    if (tripType === 'return'   && back === null) { setError('Informe o valor da volta.'); return }
     if (tripType === 'round_trip' && (out === null || back === null)) {
       setError('Informe os valores de ida e volta.')
       return
@@ -104,26 +105,24 @@ export default function DomesticForm({ tripName, onSaved, editing, onCancelEdit 
 
     setLoading(true)
 
-    const payload: DomesticPriceInsert = {
+    const payload: PriceInsert = {
+      trip_id: trip.id,
       date: brToISO(date),
-      trip_name: editing ? (editing.trip_name ?? tripName) : tripName,
-      airline,
-      origin,
-      destination,
+      airline: airline.trim(),
+      origin: origin.toUpperCase(),
+      destination: destination.toUpperCase(),
       trip_type: tripType,
       price_out:  tripType !== 'return'   ? out  : null,
       price_back: tripType !== 'outbound' ? back : null,
+      source: 'manual',
       notes: notes || undefined,
     }
 
     let err
     if (editing) {
-      ;({ error: err } = await supabase
-        .from('domestic_prices')
-        .update(payload)
-        .eq('id', editing.id))
+      ;({ error: err } = await supabase.from('prices').update(payload).eq('id', editing.id))
     } else {
-      ;({ error: err } = await supabase.from('domestic_prices').insert(payload))
+      ;({ error: err } = await supabase.from('prices').insert(payload))
     }
 
     setLoading(false)
@@ -145,8 +144,13 @@ export default function DomesticForm({ tripName, onSaved, editing, onCancelEdit 
   const dotColor = isEdit ? '#f5a623' : 'var(--primary)'
   const dotHalo  = isEdit ? 'rgba(245,166,35,.18)' : 'rgba(232,67,58,.18)'
 
-  const showOut  = tripType === 'outbound'   || tripType === 'round_trip'
-  const showBack = tripType === 'return'     || tripType === 'round_trip'
+  const showOut  = tripType === 'outbound' || tripType === 'round_trip'
+  const showBack = tripType === 'return'   || tripType === 'round_trip'
+
+  const airportOptions = Array.from(new Set([
+    ...knownAirports,
+    ...Object.keys(AIRPORT_SUGGESTIONS),
+  ]))
 
   return (
     <form onSubmit={handleSubmit} style={styles.card}>
@@ -158,7 +162,7 @@ export default function DomesticForm({ tripName, onSaved, editing, onCancelEdit 
           flexShrink: 0,
         }} />
         <span style={styles.cardTitle}>
-          {isEdit ? 'Editar registro' : 'Novo registro doméstico'}
+          {isEdit ? 'Editar registro' : 'Novo registro'}
         </span>
       </div>
 
@@ -178,28 +182,52 @@ export default function DomesticForm({ tripName, onSaved, editing, onCancelEdit 
 
         <label style={styles.label}>
           Companhia
-          <select value={airline} onChange={e => setAirline(e.target.value as DomesticAirline)}>
-            <option value="Gol">Gol</option>
-            <option value="Latam">LATAM</option>
-          </select>
+          <input
+            type="text"
+            list="airline-suggestions"
+            placeholder="ex: Gol, LATAM, Copa..."
+            value={airline}
+            onChange={e => setAirline(e.target.value)}
+            required
+          />
+          <datalist id="airline-suggestions">
+            {knownAirlines.map(a => <option key={a} value={a} />)}
+          </datalist>
         </label>
 
         <label style={styles.label}>
           Origem
-          <select value={origin} onChange={e => setOrigin(e.target.value)}>
-            {ORIGINS.map(code => (
-              <option key={code} value={code}>{code} — {DOMESTIC_ORIGINS[code]}</option>
-            ))}
-          </select>
+          <input
+            className="mono-input"
+            type="text"
+            list="airport-suggestions"
+            placeholder="FLN"
+            value={origin}
+            onChange={e => setOrigin(e.target.value.toUpperCase())}
+            maxLength={3}
+            required
+          />
         </label>
 
         <label style={styles.label}>
           Destino
-          <select value={destination} onChange={e => setDest(e.target.value)}>
-            {DESTINATIONS.map(code => (
-              <option key={code} value={code}>{code} — {DOMESTIC_DESTINATIONS[code]}</option>
+          <input
+            className="mono-input"
+            type="text"
+            list="airport-suggestions"
+            placeholder="GRU"
+            value={destination}
+            onChange={e => setDest(e.target.value.toUpperCase())}
+            maxLength={3}
+            required
+          />
+          <datalist id="airport-suggestions">
+            {airportOptions.map(code => (
+              <option key={code} value={code}>
+                {AIRPORT_SUGGESTIONS[code] ?? ''}
+              </option>
             ))}
-          </select>
+          </datalist>
         </label>
 
         <label style={{ ...styles.label, gridColumn: '1 / -1' }}>
