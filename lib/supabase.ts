@@ -107,19 +107,47 @@ const KNOWN_AIRLINE_COLORS: Record<string, string> = {
   'swiss':      '#c8102e',
   'ita':        '#3b6fd4',   // ITA Airways
   'air europa': '#3ba7c4',
+  // Low costs europeias
+  'ryanair':    '#2a5cc8',
+  'easyjet':    '#f28c28',
+  'vueling':    '#d9b300',
+  'wizz':       '#c6007e',
+  'transavia':  '#00a95c',
+  'norwegian':  '#d81939',
+  'eurowings':  '#a01441',
 }
+
+// Sugestões de companhias para o formulário (o campo continua livre)
+export const AIRLINE_SUGGESTIONS: string[] = [
+  'Gol', 'LATAM', 'Azul',
+  'Arajet', 'Avianca', 'Copa', 'Sky', 'JetSmart', 'Wingo', 'Volaris',
+  'Aeroméxico', 'Aerolíneas Argentinas', 'BoA',
+  'American', 'United', 'Delta', 'Air Canada', 'JetBlue',
+  'TAP', 'Iberia', 'Air France', 'KLM', 'Lufthansa', 'British Airways',
+  'Swiss', 'ITA Airways', 'Air Europa',
+  'Ryanair', 'easyJet', 'Vueling', 'Wizz Air', 'Transavia', 'Norwegian', 'Eurowings',
+]
 
 const PALETTE = [
   '#e8433a', '#f5a623', '#2f7fd1', '#00a878', '#9b59b6',
   '#e91e8c', '#00b8d9', '#8d6e63', '#c0ca33', '#607d8b',
 ]
 
+function knownColor(name: string): string | undefined {
+  const n = name.toLowerCase().trim()
+  if (KNOWN_AIRLINE_COLORS[n]) return KNOWN_AIRLINE_COLORS[n]
+  // casa por trecho: "British Airways" → 'british', "GOL Linhas Aéreas" → 'gol'
+  for (const [key, color] of Object.entries(KNOWN_AIRLINE_COLORS)) {
+    if (n.includes(key)) return color
+  }
+  return undefined
+}
+
 export function buildAirlineColors(airlines: string[]): Record<string, string> {
   const colors: Record<string, string> = {}
   let i = 0
   for (const a of airlines) {
-    const known = KNOWN_AIRLINE_COLORS[a.toLowerCase().trim()]
-    colors[a] = known ?? PALETTE[i++ % PALETTE.length]
+    colors[a] = knownColor(a) ?? PALETTE[i++ % PALETTE.length]
   }
   return colors
 }
@@ -189,5 +217,20 @@ export const AIRPORT_SUGGESTIONS: Record<string, string> = {
   ZRH: 'Zurique',
   MXP: 'Milão — Malpensa',
   DUB: 'Dublin',
+  // Leste europeu / Mediterrâneo
   VIE: 'Viena',
+  PRG: 'Praga',
+  BUD: 'Budapeste',
+  WAW: 'Varsóvia',
+  KRK: 'Cracóvia',
+  OTP: 'Bucareste',
+  SOF: 'Sófia',
+  BOJ: 'Burgas',
+  ATH: 'Atenas',
+  SKG: 'Tessalônica',
+  JTR: 'Santorini',
+  ZAG: 'Zagreb',
+  SPU: 'Split',
+  DBV: 'Dubrovnik',
+  BEG: 'Belgrado',
 }

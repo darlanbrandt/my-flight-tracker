@@ -34,6 +34,8 @@ export default function LoginForm({ onCancel }: { onCancel?: () => void }) {
           E-mail
           <input
             type="email"
+            name="email"
+            autoComplete="username"
             value={email}
             onChange={e => setEmail(e.target.value)}
             placeholder="seu@email.com"
@@ -46,6 +48,8 @@ export default function LoginForm({ onCancel }: { onCancel?: () => void }) {
           Senha
           <input
             type="password"
+            name="password"
+            autoComplete="current-password"
             value={password}
             onChange={e => setPassword(e.target.value)}
             placeholder="••••••••"
