@@ -185,6 +185,7 @@ export const AIRPORT_SUGGESTIONS: Record<string, string> = {
   ORD: "Chicago — O'Hare",
   ATL: 'Atlanta',
   YYZ: 'Toronto',
+  IAH: 'Houston',
   // América do Sul e Central
   SCL: 'Santiago',
   EZE: 'Buenos Aires — Ezeiza',
