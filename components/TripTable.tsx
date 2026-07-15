@@ -33,7 +33,7 @@ function getMins(data: Price[]) {
 
 function AirlineBadge({ airline, color }: { airline: string; color: string }) {
   return (
-    <span className="badge" style={{ background: `${color}20`, color }}>
+    <span className="badge" style={{ background: `color-mix(in srgb, ${color} 13%, transparent)`, color }}>
       {airline}
     </span>
   )
