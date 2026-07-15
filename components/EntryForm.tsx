@@ -5,6 +5,7 @@ import {
   supabase, Trip, Price, PriceInsert, TripType,
   TRIP_TYPE_LABELS, AIRPORT_SUGGESTIONS, AIRLINE_SUGGESTIONS,
 } from '@/lib/supabase'
+import Autocomplete, { AutocompleteOption } from '@/components/Autocomplete'
 
 type Props = {
   trip: Trip
@@ -147,10 +148,17 @@ export default function EntryForm({ trip, knownAirlines, knownAirports, onSaved,
   const showOut  = tripType === 'outbound' || tripType === 'round_trip'
   const showBack = tripType === 'return'   || tripType === 'round_trip'
 
-  const airportOptions = Array.from(new Set([
-    ...knownAirports,
-    ...Object.keys(AIRPORT_SUGGESTIONS),
-  ]))
+  const airlineOptions: AutocompleteOption[] = Array.from(
+    new Set([...knownAirlines, ...AIRLINE_SUGGESTIONS])
+  )
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+    .map(a => ({ value: a }))
+
+  const airportOptions: AutocompleteOption[] = Array.from(
+    new Set([...knownAirports, ...Object.keys(AIRPORT_SUGGESTIONS)])
+  )
+    .sort((a, b) => a.localeCompare(b))
+    .map(code => ({ value: code, label: AIRPORT_SUGGESTIONS[code] }))
 
   return (
     <form onSubmit={handleSubmit} style={styles.card}>
@@ -182,30 +190,24 @@ export default function EntryForm({ trip, knownAirlines, knownAirports, onSaved,
 
         <label style={styles.label}>
           Companhia
-          <input
-            type="text"
-            list="airline-suggestions"
-            placeholder="ex: Gol, LATAM, Copa..."
+          <Autocomplete
             value={airline}
-            onChange={e => setAirline(e.target.value)}
+            onChange={setAirline}
+            options={airlineOptions}
+            placeholder="ex: Gol, LATAM, Copa..."
             required
           />
-          <datalist id="airline-suggestions">
-            {Array.from(new Set([...knownAirlines, ...AIRLINE_SUGGESTIONS])).map(a => (
-              <option key={a} value={a} />
-            ))}
-          </datalist>
         </label>
 
         <label style={styles.label}>
           Origem
-          <input
-            className="mono-input"
-            type="text"
-            list="airport-suggestions"
-            placeholder="FLN"
+          <Autocomplete
             value={origin}
-            onChange={e => setOrigin(e.target.value.toUpperCase())}
+            onChange={setOrigin}
+            options={airportOptions}
+            placeholder="FLN"
+            mono
+            uppercase
             maxLength={3}
             required
           />
@@ -213,23 +215,16 @@ export default function EntryForm({ trip, knownAirlines, knownAirports, onSaved,
 
         <label style={styles.label}>
           Destino
-          <input
-            className="mono-input"
-            type="text"
-            list="airport-suggestions"
-            placeholder="GRU"
+          <Autocomplete
             value={destination}
-            onChange={e => setDest(e.target.value.toUpperCase())}
+            onChange={setDest}
+            options={airportOptions}
+            placeholder="GRU"
+            mono
+            uppercase
             maxLength={3}
             required
           />
-          <datalist id="airport-suggestions">
-            {airportOptions.map(code => (
-              <option key={code} value={code}>
-                {AIRPORT_SUGGESTIONS[code] ?? ''}
-              </option>
-            ))}
-          </datalist>
         </label>
 
         <label style={{ ...styles.label, gridColumn: '1 / -1' }}>
