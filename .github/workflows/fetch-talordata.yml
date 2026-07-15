@@ -1,4 +1,4 @@
-name: Fetch Trips FLN-CGH (Talordata)
+name: Fetch Talordata
 
 on:
   schedule:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   fetch:
-    name: Buscar viagens extras (out/nov)
+    name: Buscas Talordata (tracked_searches)
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -29,4 +29,4 @@ jobs:
           SUPABASE_URL:    ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY:    ${{ secrets.SUPABASE_KEY }}
           TALORDATA_TOKEN: ${{ secrets.TALORDATA_TOKEN }}
-        run: python fetch_trips.py
+        run: python fetch.py --api talordata
