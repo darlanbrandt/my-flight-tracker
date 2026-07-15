@@ -2,32 +2,27 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { supabase, FlightPrice, Origin, Destination, RouteKey } from '@/lib/supabase'
-import PriceForm       from '@/components/PriceForm'
-import PriceChart      from '@/components/PriceChart'
-import PriceTable      from '@/components/PriceTable'
-import StatsBar        from '@/components/StatsBar'
-import LoginForm       from '@/components/LoginForm'
-import TrendBanner     from '@/components/TrendBanner'
-import Toast           from '@/components/Toast'
-import DomesticSection from '@/components/DomesticSection'
+import { supabase, Trip, KIND_LABELS } from '@/lib/supabase'
+import TripSection from '@/components/TripSection'
+import TripManager from '@/components/TripManager'
+import LoginForm   from '@/components/LoginForm'
+import Toast       from '@/components/Toast'
 
 export type ToastType = 'success' | 'error' | 'info'
 export type ToastMsg  = { id: number; message: string; type: ToastType }
 
 export default function FlightApp() {
-  const [user, setUser]           = useState<User | null | undefined>(undefined)
-  const [showLogin, setShowLogin] = useState(false)
-  const [data, setData]           = useState<FlightPrice[]>([])
-  const [loading, setLoading]     = useState(true)
-  const [editing, setEditing]     = useState<FlightPrice | null>(null)
-  const [theme, setTheme]         = useState<'dark' | 'light'>('light')
-  const [routeFilter, setRoute]   = useState<RouteKey>('all')
-  const [isNarrow, setIsNarrow]   = useState(false)
-  const [toasts, setToasts]       = useState<ToastMsg[]>([])
-  const [tab, setTab]             = useState<'internacional' | 'domestico'>('internacional')
-  const containerRef              = useRef<HTMLDivElement>(null)
-  const toastId                   = useRef(0)
+  const [user, setUser]             = useState<User | null | undefined>(undefined)
+  const [showLogin, setShowLogin]   = useState(false)
+  const [trips, setTrips]           = useState<Trip[]>([])
+  const [tripId, setTripId]         = useState<number | null>(null)
+  const [loadingTrips, setLoading]  = useState(true)
+  const [showManager, setManager]   = useState(false)
+  const [theme, setTheme]           = useState<'dark' | 'light'>('light')
+  const [isNarrow, setIsNarrow]     = useState(false)
+  const [toasts, setToasts]         = useState<ToastMsg[]>([])
+  const containerRef                = useRef<HTMLDivElement>(null)
+  const toastId                     = useRef(0)
 
   const showToast = useCallback((message: string, type: ToastType = 'info') => {
     const id = ++toastId.current
@@ -46,17 +41,22 @@ export default function FlightApp() {
     return () => subscription.unsubscribe()
   }, [])
 
-  const fetchData = useCallback(async () => {
+  const fetchTrips = useCallback(async () => {
     setLoading(true)
     const { data: rows } = await supabase
-      .from('flight_prices')
+      .from('trips')
       .select('*')
-      .order('date', { ascending: false })
-    setData(rows ?? [])
+      .order('date_out', { ascending: true })
+    const list = rows ?? []
+    setTrips(list)
+    setTripId(prev => {
+      if (prev !== null && list.some(t => t.id === prev)) return prev
+      return list[0]?.id ?? null
+    })
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { fetchTrips() }, [fetchTrips])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -73,29 +73,7 @@ export default function FlightApp() {
   }, [])
 
   const isLoggedIn = !!user
-
-  const routes = Array.from(
-    new Set(data.map(r => `${r.origin}-${r.destination}`))
-  ).sort()
-
-  const filteredData = routeFilter === 'all'
-    ? data
-    : data.filter(r => `${r.origin}-${r.destination}` === routeFilter)
-
-  const handleRouteChange = (value: string) => {
-    setRoute(value)
-    if (value !== 'all') {
-      const count = data.filter(r => `${r.origin}-${r.destination}` === value).length
-      if (count === 0) showToast('Nenhum registro encontrado para esta rota.', 'info')
-    }
-  }
-
-  const routeLabel = routeFilter === 'all'
-    ? 'todas as rotas'
-    : (() => {
-        const [o, d] = routeFilter.split('-') as [Origin, Destination]
-        return `${o} → ${d}`
-      })()
+  const trip = trips.find(t => t.id === tripId) ?? null
 
   if (showLogin && !isLoggedIn) {
     return <LoginForm onCancel={() => setShowLogin(false)} />
@@ -104,6 +82,15 @@ export default function FlightApp() {
   return (
     <div ref={containerRef} style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <Toast toasts={toasts} />
+      {showManager && (
+        <TripManager
+          trips={trips}
+          onClose={() => setManager(false)}
+          onChanged={fetchTrips}
+          onToast={showToast}
+        />
+      )}
+
       <div style={styles.container}>
 
         {/* ── Header ── */}
@@ -118,28 +105,12 @@ export default function FlightApp() {
             <div>
               <h1 style={styles.h1}>Flight Price Tracker</h1>
               <p style={styles.sub}>
-                Arajet · Avianca · American — Brasil → EUA · acompanhamento diário de tarifas
+                Acompanhamento diário de tarifas aéreas
               </p>
             </div>
           </div>
 
           <div style={styles.controls}>
-            {tab === 'internacional' && (
-              <div>
-                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)',
-                  textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
-                  Rota
-                </p>
-                <select value={routeFilter} onChange={e => handleRouteChange(e.target.value)}
-                  style={{ minWidth: 150 }}>
-                  <option value="all">Todas as rotas</option>
-                  {routes.map(r => {
-                    const [o, d] = r.split('-') as [Origin, Destination]
-                    return <option key={r} value={r}>{o} → {d}</option>
-                  })}
-                </select>
-              </div>
-            )}
             <button
               className="btn-ghost"
               onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
@@ -161,65 +132,62 @@ export default function FlightApp() {
                 Entrar
               </button>
             )}
-            {loading && (
-              <span style={{ alignSelf: 'flex-end', fontSize: 11,
-                color: 'var(--text3)', fontFamily: 'JetBrains Mono, monospace' }}>
-                carregando...
-              </span>
-            )}
           </div>
         </header>
 
-        {/* ── Tab switcher ── */}
-        <div style={styles.tabBar}>
-          <div className="segmented">
-            <button className={tab === 'internacional' ? 'active' : ''} onClick={() => setTab('internacional')}>
-              Internacional
-            </button>
-            <button className={tab === 'domestico' ? 'active' : ''} onClick={() => setTab('domestico')}>
-              Doméstico
-            </button>
+        {/* ── Seletor de viagem ── */}
+        <div style={styles.tripBar}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' as const }}>
+            <span style={styles.tripLabel}>Viagem:</span>
+            {trips.length > 0 && (
+              <select
+                value={tripId ?? ''}
+                onChange={e => setTripId(Number(e.target.value))}
+                style={{ minWidth: 220, fontWeight: 600 }}
+              >
+                {trips.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} · {t.period} ({KIND_LABELS[t.kind]})
+                  </option>
+                ))}
+              </select>
+            )}
+            {trip && (
+              <span style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'JetBrains Mono, monospace' }}>
+                {trip.date_out.split('-').reverse().join('/')} → {trip.date_back.split('-').reverse().join('/')}
+              </span>
+            )}
           </div>
+          {isLoggedIn && (
+            <button className="btn-ghost" onClick={() => setManager(true)}
+              style={{ height: 36, whiteSpace: 'nowrap' }}>
+              ⚙ Gerenciar viagens
+            </button>
+          )}
         </div>
 
-        {tab === 'internacional' ? (
-          <>
-            {/* ── Trend banner ── */}
-            <TrendBanner />
-
-            {/* ── top block: form (só logado) + chart ── */}
-            <div style={isNarrow ? styles.topBlockNarrow : (isLoggedIn ? styles.topBlock : styles.topBlockReadonly)}>
-              {isLoggedIn && (
-                <PriceForm
-                  onSaved={(msg) => { fetchData(); showToast(msg ?? 'Registro salvo!', 'success') }}
-                  editing={editing}
-                  onCancelEdit={() => setEditing(null)}
-                />
-              )}
-              <PriceChart data={filteredData} routeLabel={routeLabel} isNarrow={isNarrow} />
-            </div>
-
-            <StatsBar data={filteredData} isNarrow={isNarrow} />
-
-            <PriceTable
-              data={data}
-              routeFilter={routeFilter}
-              isNarrow={isNarrow}
-              canEdit={isLoggedIn}
-              onRefresh={fetchData}
-              onToast={showToast}
-              onEdit={row => {
-                setEditing(row)
-                window.scrollTo({ top: 0, behavior: 'smooth' })
-              }}
-            />
-          </>
-        ) : (
-          <DomesticSection
+        {/* ── Conteúdo da viagem ── */}
+        {loadingTrips ? (
+          <p style={styles.placeholder}>carregando viagens...</p>
+        ) : trip ? (
+          <TripSection
+            key={trip.id}
+            trip={trip}
             isLoggedIn={isLoggedIn}
             isNarrow={isNarrow}
             onToast={showToast}
           />
+        ) : (
+          <div style={styles.emptyState}>
+            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>
+              Nenhuma viagem cadastrada
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--text3)', marginTop: 6 }}>
+              {isLoggedIn
+                ? 'Clique em "Gerenciar viagens" para criar a primeira.'
+                : 'Entre para cadastrar uma viagem.'}
+            </p>
+          </div>
         )}
 
       </div>
@@ -241,7 +209,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: 'wrap',
     borderBottom: '1px solid var(--border)',
     paddingBottom: 20,
-    marginBottom: 28,
+    marginBottom: 22,
     position: 'sticky',
     top: 0,
     zIndex: 10,
@@ -283,26 +251,33 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
     flexWrap: 'wrap',
   },
-  tabBar: {
-    marginBottom: 24,
-  },
-  topBlock: {
-    display: 'grid',
-    gridTemplateColumns: '460px minmax(0,1fr)',
-    gap: 20,
-    alignItems: 'stretch',
-    marginTop: 20,
-  },
-  topBlockReadonly: {
-    display: 'grid',
-    gridTemplateColumns: 'minmax(0,1fr)',
-    gap: 20,
-    marginTop: 20,
-  },
-  topBlockNarrow: {
+  tripBar: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: 20,
-    marginTop: 20,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    flexWrap: 'wrap',
+    marginBottom: 22,
+  },
+  tripLabel: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: 'var(--text3)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  },
+  placeholder: {
+    padding: 60,
+    textAlign: 'center',
+    color: 'var(--text3)',
+    fontSize: 13,
+    fontFamily: 'JetBrains Mono, monospace',
+  },
+  emptyState: {
+    padding: '80px 20px',
+    textAlign: 'center',
+    background: 'var(--surface)',
+    border: '1px dashed var(--border2)',
+    borderRadius: 18,
   },
 }

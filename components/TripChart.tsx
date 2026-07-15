@@ -2,36 +2,39 @@
 
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer,
+  Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { FlightPrice, Airline, AIRLINE_COLORS } from '@/lib/supabase'
+import { Price, TripType, TRIP_TYPE_LABELS } from '@/lib/supabase'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 type Props = {
-  data: FlightPrice[]
-  routeLabel: string
+  data: Price[]                       // já filtrado por viagem/rota
+  tripType: TripType
+  colors: Record<string, string>      // cor por companhia
   isNarrow: boolean
 }
-
-const AIRLINES: Airline[] = ['Arajet', 'Avianca', 'American']
 
 function formatBRL(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-export default function PriceChart({ data, routeLabel, isNarrow }: Props) {
-  if (data.length === 0) {
+export default function TripChart({ data, tripType, colors, isNarrow }: Props) {
+  const filtered = data.filter(r => r.trip_type === tripType)
+
+  if (filtered.length === 0) {
     return (
       <div style={styles.card}>
-        <p style={styles.empty}>Sem dados para esta rota.</p>
+        <p style={styles.empty}>Sem dados para {TRIP_TYPE_LABELS[tripType].toLowerCase()}.</p>
       </div>
     )
   }
 
-  // group by date; use minimum total when same airline appears multiple times in same date
+  const airlines = Array.from(new Set(filtered.map(r => r.airline))).sort()
+
+  // menor total por dia por companhia
   const byDate: Record<string, Record<string, number>> = {}
-  for (const row of data) {
+  for (const row of filtered) {
     if (!byDate[row.date]) byDate[row.date] = {}
     const prev = byDate[row.date][row.airline]
     if (prev === undefined || row.total < prev) {
@@ -43,8 +46,6 @@ export default function PriceChart({ data, routeLabel, isNarrow }: Props) {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, vals]) => ({ date, ...vals }))
 
-  const maxTicks = isNarrow ? 5 : undefined
-
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null
     return (
@@ -52,31 +53,32 @@ export default function PriceChart({ data, routeLabel, isNarrow }: Props) {
         <p style={styles.tooltipDate}>
           {format(parseISO(label), "dd 'de' MMM", { locale: ptBR })}
         </p>
-        {payload.map((p: any) => (
-          <p key={p.name} style={{ color: p.color, margin: '2px 0', fontSize: 12 }}>
-            <span style={{ fontWeight: 600 }}>{p.name}:</span>{' '}
-            {formatBRL(p.value)}
-          </p>
-        ))}
+        {[...payload]
+          .sort((a: any, b: any) => a.value - b.value)
+          .map((p: any) => (
+            <p key={p.name} style={{ color: p.color, margin: '2px 0', fontSize: 12 }}>
+              <span style={{ fontWeight: 600 }}>{p.name}:</span>{' '}
+              {formatBRL(p.value)}
+            </p>
+          ))}
       </div>
     )
   }
 
   return (
     <div style={styles.card}>
-      {/* header */}
       <div style={styles.cardHeader}>
         <div>
-          <p style={styles.cardTitle}>Variação de preço total</p>
-          <p style={styles.cardSub}>{routeLabel} · ida + volta</p>
+          <p style={styles.cardTitle}>Variação de preço</p>
+          <p style={styles.cardSub}>{TRIP_TYPE_LABELS[tripType]}</p>
         </div>
         <div style={styles.legend}>
-          {AIRLINES.filter(a => data.some(r => r.airline === a)).map(a => (
+          {airlines.map(a => (
             <div key={a} style={styles.legendItem}>
               <span style={{
                 display: 'inline-block',
                 width: 14, height: 2.5,
-                background: AIRLINE_COLORS[a],
+                background: colors[a],
                 borderRadius: 2,
                 flexShrink: 0,
               }} />
@@ -86,7 +88,6 @@ export default function PriceChart({ data, routeLabel, isNarrow }: Props) {
         </div>
       </div>
 
-      {/* chart */}
       <ResponsiveContainer width="100%" height={isNarrow ? 220 : 260}>
         <LineChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -96,7 +97,7 @@ export default function PriceChart({ data, routeLabel, isNarrow }: Props) {
             tick={{ fill: 'var(--text3)', fontSize: 11 }}
             axisLine={{ stroke: 'var(--border)' }}
             tickLine={false}
-            interval={maxTicks !== undefined ? 'preserveStartEnd' : undefined}
+            interval={isNarrow ? 'preserveStartEnd' : undefined}
           />
           <YAxis
             tickFormatter={v => `R$${(v / 1000).toFixed(1)}k`}
@@ -106,14 +107,14 @@ export default function PriceChart({ data, routeLabel, isNarrow }: Props) {
             width={58}
           />
           <Tooltip content={<CustomTooltip />} />
-          {AIRLINES.map(a => (
+          {airlines.map(a => (
             <Line
               key={a}
               type="monotone"
               dataKey={a}
-              stroke={AIRLINE_COLORS[a]}
+              stroke={colors[a]}
               strokeWidth={2.5}
-              dot={{ r: 3.5, fill: AIRLINE_COLORS[a] }}
+              dot={{ r: 3.5, fill: colors[a] }}
               activeDot={{ r: 5 }}
               connectNulls
             />
