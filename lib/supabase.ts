@@ -77,18 +77,36 @@ export const TRIP_TYPE_LABELS: Record<TripType, string> = {
 // na ordem em que aparecem.
 
 const KNOWN_AIRLINE_COLORS: Record<string, string> = {
+  // Brasil / América do Sul e Central
   'gol':        '#FF6600',
   'latam':      '#7B61FF',
+  'azul':       '#00a1e0',
   'arajet':     '#e8433a',
   'avianca':    '#f5a623',
-  'american':   '#2f7fd1',
   'copa':       '#0f62ac',
-  'azul':       '#00a1e0',
-  'air canada': '#d22630',
+  'sky':        '#7a4dbf',   // Sky Airline (Chile)
+  'jetsmart':   '#c2185b',   // JetSmart (Chile/Argentina)
+  'wingo':      '#8e5bd4',   // Wingo (Colômbia)
+  'volaris':    '#a4459f',   // Volaris (México/América Central)
+  'aeromexico': '#0f4c81',
+  'aerolineas': '#5fc2e0',
+  'boa':        '#2e7d32',   // Boliviana de Aviación
+  // América do Norte
+  'american':   '#2f7fd1',
   'united':     '#4f7bd9',
   'delta':      '#a01c3a',
+  'air canada': '#d22630',
+  'jetblue':    '#1a3ba5',
+  // Europa
   'tap':        '#00a887',
-  'aerolineas': '#5fc2e0',
+  'iberia':     '#d7192d',
+  'air france': '#4d64c8',
+  'klm':        '#00a1de',
+  'lufthansa':  '#e0a800',
+  'british':    '#2e5c99',   // British Airways
+  'swiss':      '#c8102e',
+  'ita':        '#3b6fd4',   // ITA Airways
+  'air europa': '#3ba7c4',
 }
 
 const PALETTE = [
@@ -123,18 +141,53 @@ export const AIRPORT_SUGGESTIONS: Record<string, string> = {
   FOR: 'Fortaleza',
   NAT: 'Natal',
   MCZ: 'Maceió',
+  // Estados Unidos / Canadá
   EWR: 'New York — Newark',
   JFK: 'New York — JFK',
   LGA: 'New York — LaGuardia',
   IAD: 'Washington DC — Dulles',
   MIA: 'Miami',
+  FLL: 'Fort Lauderdale',
   MCO: 'Orlando',
   DFW: 'Dallas — Fort Worth',
   BOS: 'Boston',
+  LAX: 'Los Angeles',
+  SFO: 'San Francisco',
+  LAS: 'Las Vegas',
+  ORD: "Chicago — O'Hare",
+  ATL: 'Atlanta',
   YYZ: 'Toronto',
-  LIS: 'Lisboa',
-  MAD: 'Madri',
-  PTY: 'Cidade do Panamá',
+  // América do Sul e Central
   SCL: 'Santiago',
   EZE: 'Buenos Aires — Ezeiza',
+  LIM: 'Lima',
+  BOG: 'Bogotá',
+  PTY: 'Cidade do Panamá',
+  SDQ: 'Santo Domingo',
+  PUJ: 'Punta Cana',
+  MEX: 'Cidade do México',
+  CUN: 'Cancún',
+  // Europa
+  LIS: 'Lisboa',
+  OPO: 'Porto',
+  MAD: 'Madri',
+  BCN: 'Barcelona',
+  CDG: 'Paris — Charles de Gaulle',
+  ORY: 'Paris — Orly',
+  BVA: 'Paris — Beauvais',
+  FCO: 'Roma — Fiumicino',
+  CIA: 'Roma — Ciampino',
+  BER: 'Berlim',
+  LHR: 'Londres — Heathrow',
+  LGW: 'Londres — Gatwick',
+  STN: 'Londres — Stansted',
+  LTN: 'Londres — Luton',
+  BRU: 'Bruxelas',
+  AMS: 'Amsterdã',
+  FRA: 'Frankfurt',
+  MUC: 'Munique',
+  ZRH: 'Zurique',
+  MXP: 'Milão — Malpensa',
+  DUB: 'Dublin',
+  VIE: 'Viena',
 }
