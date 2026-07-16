@@ -45,7 +45,8 @@ const badgeBase: React.CSSProperties = {
 }
 
 export default function TripStatsBar({ data, tripType, colors, isNarrow }: Props) {
-  const rows = data.filter(r => r.trip_type === tripType)
+  // cards consideram apenas registros manuais
+  const rows = data.filter(r => r.trip_type === tripType && r.source === 'manual')
   if (rows.length === 0) return null
 
   // agrega por companhia e ranqueia pela menor média — os 3 melhores viram cards

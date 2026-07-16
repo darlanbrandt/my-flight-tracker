@@ -43,7 +43,7 @@ export default function TripTable({ data, colors, isNarrow, canEdit, onRefresh, 
   const [deleting, setDeleting]     = useState<string | null>(null)
   const [airline, setAirline]       = useState<string>('all')
   const [tripFilter, setTripFilter] = useState<'all' | TripType>('all')
-  const [sourceFilter, setSource]   = useState<'all' | PriceSource>('all')
+  const [sourceFilter, setSource]   = useState<'all' | PriceSource>('manual')
   const [sortDir, setSortDir]       = useState<'asc' | 'desc'>('desc')
 
   const airlines = Array.from(new Set(data.map(r => r.airline))).sort()
@@ -54,7 +54,7 @@ export default function TripTable({ data, colors, isNarrow, canEdit, onRefresh, 
   const filtered = data
     .filter(r => airline === 'all' || r.airline === airline)
     .filter(r => tripFilter === 'all' || r.trip_type === tripFilter)
-    .filter(r => sourceFilter === 'all' || r.source === sourceFilter)
+    .filter(r => !hasSources || sourceFilter === 'all' || r.source === sourceFilter)
     .sort((a, b) => {
       const cmp = a.date.localeCompare(b.date)
       return sortDir === 'asc' ? cmp : -cmp
