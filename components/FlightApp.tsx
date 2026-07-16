@@ -53,7 +53,8 @@ export default function FlightApp() {
       if (prev !== null && list.some(t => t.id === prev)) return prev
       const saved = Number(localStorage.getItem('selectedTripId'))
       if (saved && list.some(t => t.id === saved)) return saved
-      return list[0]?.id ?? null
+      // sem seleção salva: cai na primeira viagem cadastrada (menor id)
+      return list.length ? Math.min(...list.map(t => t.id)) : null
     })
     setLoading(false)
   }, [])
