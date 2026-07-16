@@ -20,7 +20,8 @@ function formatBRL(v: number) {
 }
 
 export default function TripChart({ data, tripType, colors, isNarrow }: Props) {
-  const filtered = data.filter(r => r.trip_type === tripType)
+  // gráfico exibe apenas registros manuais
+  const filtered = data.filter(r => r.trip_type === tripType && r.source === 'manual')
 
   if (filtered.length === 0) {
     return (
