@@ -1,9 +1,25 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import PWARegister from '@/components/PWARegister'
 
 export const metadata: Metadata = {
   title: 'Flight Price Tracker',
-  description: 'Arajet · Avianca · American — acompanhamento de preços',
+  description: 'Acompanhamento diário de tarifas aéreas',
+  appleWebApp: {
+    capable: true,
+    title: 'Flights',
+    statusBarStyle: 'default',
+  },
+  icons: {
+    apple: '/apple-touch-icon.png',
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#e8433a',
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -15,7 +31,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <PWARegister />
+        {children}
+      </body>
     </html>
   )
 }
