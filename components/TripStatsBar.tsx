@@ -6,6 +6,7 @@ type Props = {
   data: Price[]                       // já filtrado por viagem/rota
   tripType: TripType
   colors: Record<string, string>
+  sourceMode: 'manual' | 'auto'
   isNarrow: boolean
 }
 
@@ -44,9 +45,8 @@ const badgeBase: React.CSSProperties = {
   flexShrink: 0,
 }
 
-export default function TripStatsBar({ data, tripType, colors, isNarrow }: Props) {
-  // cards consideram apenas registros manuais
-  const rows = data.filter(r => r.trip_type === tripType && r.source === 'manual')
+export default function TripStatsBar({ data, tripType, colors, sourceMode, isNarrow }: Props) {
+  const rows = data.filter(r => r.trip_type === tripType && r.source === sourceMode)
   if (rows.length === 0) return null
 
   // agrega por companhia e ranqueia pela menor média — os 3 melhores viram cards
