@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   supabase, Trip, Price, PriceInsert, TripType,
-  TRIP_TYPE_LABELS, AIRPORT_SUGGESTIONS, AIRLINE_SUGGESTIONS,
+  TRIP_TYPE_LABELS, AIRPORT_SUGGESTIONS, AIRLINE_SUGGESTIONS, normalizeAirline,
 } from '@/lib/supabase'
 import Autocomplete, { AutocompleteOption } from '@/components/Autocomplete'
 
@@ -109,7 +109,7 @@ export default function EntryForm({ trip, knownAirlines, knownAirports, onSaved,
     const payload: PriceInsert = {
       trip_id: trip.id,
       date: brToISO(date),
-      airline: airline.trim(),
+      airline: normalizeAirline(airline),
       origin: origin.toUpperCase(),
       destination: destination.toUpperCase(),
       trip_type: tripType,
