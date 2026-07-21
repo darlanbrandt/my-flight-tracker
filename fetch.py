@@ -212,15 +212,17 @@ def upsert(s: dict, price: float) -> bool:
         price_out, price_back = None, price
 
     payload = {
-        "trip_id":     s["trip_id"],
-        "date":        date.today().isoformat(),
-        "airline":     s["airline"],
-        "origin":      s["origin"],
-        "destination": s["destination"],
-        "trip_type":   trip_type,
-        "price_out":   price_out,
-        "price_back":  price_back,
-        "source":      "auto",
+        "trip_id":      s["trip_id"],
+        "date":         date.today().isoformat(),
+        "airline":      s["airline"],
+        "origin":       s["origin"],
+        "destination":  s["destination"],
+        "trip_type":    trip_type,
+        "price_out":    price_out,
+        "price_back":   price_back,
+        "source":       "auto",
+        "payment_type": "cash",
+        "program":      "",
     }
 
     try:
@@ -228,7 +230,7 @@ def upsert(s: dict, price: float) -> bool:
             f"{SUPABASE_URL}/rest/v1/prices",
             headers=SUPABASE_HEADERS,
             json=payload,
-            params={"on_conflict": "trip_id,date,airline,origin,destination,trip_type,source"},
+            params={"on_conflict": "trip_id,date,airline,origin,destination,trip_type,source,payment_type,program"},
             timeout=15,
         )
         if resp.status_code in (200, 201):

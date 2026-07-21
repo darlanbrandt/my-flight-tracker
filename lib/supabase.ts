@@ -36,6 +36,7 @@ export const KIND_LABELS: Record<TripKind, string> = {
 
 export type TripType = 'outbound' | 'return' | 'round_trip'
 export type PriceSource = 'manual' | 'auto'
+export type PaymentType = 'cash' | 'miles'
 
 export type Price = {
   id: string
@@ -45,10 +46,15 @@ export type Price = {
   origin: string
   destination: string
   trip_type: TripType
-  price_out: number | null
+  price_out: number | null      // milhas: complemento em R$ (taxas)
   price_back: number | null
   total: number
   source: PriceSource
+  payment_type: PaymentType
+  program: string               // '' quando cash
+  miles_out: number | null
+  miles_back: number | null
+  miles_total: number
   notes: string | null
   created_at: string
 }
@@ -63,7 +69,37 @@ export type PriceInsert = {
   price_out?: number | null
   price_back?: number | null
   source?: PriceSource
+  payment_type?: PaymentType
+  program?: string
+  miles_out?: number | null
+  miles_back?: number | null
   notes?: string
+}
+
+export type MileageBalance = {
+  id: number
+  program: string
+  balance: number
+  updated_at: string
+}
+
+// Programas de fidelidade sugeridos (o campo continua livre)
+export const PROGRAM_SUGGESTIONS: string[] = [
+  'Latam Pass', 'Smiles', 'TudoAzul', 'TAP Miles&Go', 'AAdvantage',
+  'MileagePlus', 'Aeroplan', 'Connectmiles',
+]
+
+// Programa padrão por companhia (facilita o preenchimento)
+export const PROGRAM_BY_AIRLINE: Record<string, string> = {
+  'latam': 'Latam Pass',
+  'gol':   'Smiles',
+  'azul':  'TudoAzul',
+  'tap':   'TAP Miles&Go',
+}
+
+export function formatMiles(v: number | null): string {
+  if (v === null) return '—'
+  return v.toLocaleString('pt-BR') + ' pts'
 }
 
 export const TRIP_TYPE_LABELS: Record<TripType, string> = {

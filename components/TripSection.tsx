@@ -31,6 +31,7 @@ export default function TripSection({ trip, isLoggedIn, isNarrow, onToast }: Pro
       .from('prices')
       .select('*')
       .eq('trip_id', trip.id)
+      .eq('payment_type', 'cash')
       .order('date', { ascending: false })
     setData(rows ?? [])
     setLoading(false)
