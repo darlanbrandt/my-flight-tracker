@@ -1,4 +1,4 @@
-name: Fetch SerpAPI
+name: Fetch Prices (SerpAPI)
 
 on:
   schedule:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   fetch:
-    name: Buscas SerpAPI (tracked_searches)
+    name: Buscas de preços (tracked_searches)
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -28,4 +28,4 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           SERPAPI_KEY:  ${{ secrets.SERPAPI_KEY }}
-        run: python fetch.py --api serpapi
+        run: python fetch.py

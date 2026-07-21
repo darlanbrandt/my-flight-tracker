@@ -12,6 +12,7 @@ type Props = {
   data: Price[]                       // já filtrado por viagem/rota
   tripType: TripType
   colors: Record<string, string>      // cor por companhia
+  sourceMode: 'manual' | 'auto'       // fonte a exibir
   isNarrow: boolean
 }
 
@@ -19,9 +20,8 @@ function formatBRL(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-export default function TripChart({ data, tripType, colors, isNarrow }: Props) {
-  // gráfico exibe apenas registros manuais
-  const filtered = data.filter(r => r.trip_type === tripType && r.source === 'manual')
+export default function TripChart({ data, tripType, colors, sourceMode, isNarrow }: Props) {
+  const filtered = data.filter(r => r.trip_type === tripType && r.source === sourceMode)
 
   if (filtered.length === 0) {
     return (

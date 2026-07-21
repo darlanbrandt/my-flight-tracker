@@ -61,6 +61,10 @@ export default function TripSection({ trip, isLoggedIn, isNarrow, onToast }: Pro
   const usedTripTypes = TRIP_TYPES.filter(t => data.some(r => r.trip_type === t))
   const showTripTypeSelector = usedTripTypes.length > 1 || trip.kind === 'domestica'
 
+  // gráfico e cards priorizam registros manuais; se a viagem só tem
+  // automáticos (ex: acompanhamento novo), usam os automáticos como base
+  const sourceMode: 'manual' | 'auto' = data.some(r => r.source === 'manual') ? 'manual' : 'auto'
+
   return (
     <div>
       {/* filtros */}
@@ -109,10 +113,10 @@ export default function TripSection({ trip, isLoggedIn, isNarrow, onToast }: Pro
             onCancelEdit={() => setEditing(null)}
           />
         )}
-        <TripChart data={routeData} tripType={tripType} colors={colors} isNarrow={isNarrow} />
+        <TripChart data={routeData} tripType={tripType} colors={colors} sourceMode={sourceMode} isNarrow={isNarrow} />
       </div>
 
-      <TripStatsBar data={routeData} tripType={tripType} colors={colors} isNarrow={isNarrow} />
+      <TripStatsBar data={routeData} tripType={tripType} colors={colors} sourceMode={sourceMode} isNarrow={isNarrow} />
 
       <TripTable
         data={routeData}
