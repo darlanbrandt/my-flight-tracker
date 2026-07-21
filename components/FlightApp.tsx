@@ -80,7 +80,10 @@ export default function FlightApp() {
   }, [])
 
   useEffect(() => { fetchTrips() }, [fetchTrips])
-  useEffect(() => { fetchBalances() }, [fetchBalances])
+  useEffect(() => {
+    if (user) fetchBalances()
+    else setBalances([])
+  }, [user, fetchBalances])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)

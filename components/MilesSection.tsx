@@ -54,12 +54,17 @@ export default function MilesSection({ trip, balances, isLoggedIn, isNarrow, onT
 
   const usedTripTypes = TRIP_TYPES.filter(t => data.some(r => r.trip_type === t))
 
+  // deslogado não recebe os saldos reais (RLS bloqueia) — mostra placeholder
+  const displayBalances: MileageBalance[] = isLoggedIn
+    ? balances
+    : ['Latam Pass', 'Smiles'].map((program, i) => ({ id: -1 - i, program, balance: 0, updated_at: '' }))
+
   return (
     <div>
-      {/* saldos de pontos */}
-      {balances.length > 0 && (
+      {/* saldos de pontos — visíveis só logado; deslogado mostra placeholder borrado */}
+      {displayBalances.length > 0 && (
         <div style={styles.balanceRow}>
-          {balances.map(b => {
+          {displayBalances.map(b => {
             const need = cheapestByProgram[b.program]
             const enough = need !== undefined && b.balance >= need
             const missing = need !== undefined ? Math.max(0, need - b.balance) : null
@@ -67,14 +72,22 @@ export default function MilesSection({ trip, balances, isLoggedIn, isNarrow, onT
               <div key={b.program} style={styles.balanceCard}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
                   <span style={styles.balanceName}>{b.program}</span>
-                  <span style={styles.balanceVal}>{b.balance.toLocaleString('pt-BR')}</span>
+                  {isLoggedIn ? (
+                    <span style={styles.balanceVal}>{b.balance.toLocaleString('pt-BR')}</span>
+                  ) : (
+                    <span style={{ ...styles.balanceVal, filter: 'blur(6px)', userSelect: 'none' }}
+                      aria-hidden title="Entre para ver seu saldo">000.000</span>
+                  )}
                 </div>
-                {need !== undefined && (
+                {isLoggedIn && need !== undefined && (
                   <p style={{ fontSize: 11.5, marginTop: 4, color: enough ? 'var(--green)' : 'var(--text3)' }}>
                     {enough
                       ? `✓ suficiente p/ ida e volta (${formatMiles(need)})`
                       : `faltam ${missing!.toLocaleString('pt-BR')} pts p/ ida e volta`}
                   </p>
+                )}
+                {!isLoggedIn && (
+                  <p style={{ fontSize: 10.5, marginTop: 6, color: 'var(--text3)' }}>🔒 entre para ver</p>
                 )}
               </div>
             )
