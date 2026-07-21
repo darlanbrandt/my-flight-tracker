@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, Trip, Price, TripType, TRIP_TYPE_LABELS, buildAirlineColors } from '@/lib/supabase'
 import EntryForm    from '@/components/EntryForm'
+import TripBanner    from '@/components/TripBanner'
 import TripChart    from '@/components/TripChart'
 import TripStatsBar from '@/components/TripStatsBar'
 import TripTable    from '@/components/TripTable'
@@ -67,6 +68,8 @@ export default function TripSection({ trip, isLoggedIn, isNarrow, onToast }: Pro
 
   return (
     <div>
+      <TripBanner data={routeData} sourceMode={sourceMode} colors={colors} />
+
       {/* filtros */}
       <div style={styles.filterBar}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' as const }}>
