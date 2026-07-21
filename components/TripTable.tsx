@@ -197,9 +197,6 @@ export default function TripTable({ data, colors, isNarrow, canEdit, onRefresh, 
                   <tr key={row.id} style={styles.tr} title={row.notes ?? undefined}>
                     <td style={{ ...styles.td, fontFamily: 'JetBrains Mono, monospace', fontSize: 12.5 }}>
                       {format(parseISO(row.date), 'dd/MM/yyyy')}
-                      {row.notes && (
-                        <span title={row.notes} style={styles.noteMark}>💬</span>
-                      )}
                     </td>
                     <td style={styles.td}>
                       <AirlineBadge airline={row.airline} color={colors[row.airline]} />
@@ -328,12 +325,6 @@ const styles: Record<string, React.CSSProperties> = {
   mobileCard: {
     padding: '14px 16px',
     borderBottom: '1px solid var(--border)',
-  },
-  noteMark: {
-    marginLeft: 6,
-    fontSize: 11,
-    cursor: 'help',
-    verticalAlign: 'middle',
   },
   mobileNote: {
     marginTop: 8,

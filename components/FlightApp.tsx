@@ -2,11 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { supabase, Trip, KIND_LABELS } from '@/lib/supabase'
-import TripSection from '@/components/TripSection'
-import TripManager from '@/components/TripManager'
-import LoginForm   from '@/components/LoginForm'
-import Toast       from '@/components/Toast'
+import { supabase, Trip, MileageBalance, KIND_LABELS } from '@/lib/supabase'
+import TripSection   from '@/components/TripSection'
+import MilesSection  from '@/components/MilesSection'
+import TripManager   from '@/components/TripManager'
+import SettingsModal from '@/components/SettingsModal'
+import LoginForm     from '@/components/LoginForm'
+import Toast         from '@/components/Toast'
+
+type Tab = 'cash' | 'miles'
 
 export type ToastType = 'success' | 'error' | 'info'
 export type ToastMsg  = { id: number; message: string; type: ToastType }
@@ -18,6 +22,9 @@ export default function FlightApp() {
   const [tripId, setTripId]         = useState<number | null>(null)
   const [loadingTrips, setLoading]  = useState(true)
   const [showManager, setManager]   = useState(false)
+  const [showSettings, setSettings] = useState(false)
+  const [tab, setTab]               = useState<Tab>('cash')
+  const [balances, setBalances]     = useState<MileageBalance[]>([])
   const [theme, setTheme]           = useState<'dark' | 'light'>('light')
   const [isNarrow, setIsNarrow]     = useState(false)
   const [toasts, setToasts]         = useState<ToastMsg[]>([])
@@ -64,7 +71,16 @@ export default function FlightApp() {
     localStorage.setItem('selectedTripId', String(id))
   }, [])
 
+  const fetchBalances = useCallback(async () => {
+    const { data: rows } = await supabase
+      .from('mileage_balances')
+      .select('*')
+      .order('program', { ascending: true })
+    setBalances(rows ?? [])
+  }, [])
+
   useEffect(() => { fetchTrips() }, [fetchTrips])
+  useEffect(() => { fetchBalances() }, [fetchBalances])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -95,6 +111,14 @@ export default function FlightApp() {
           trips={trips}
           onClose={() => setManager(false)}
           onChanged={fetchTrips}
+          onToast={showToast}
+        />
+      )}
+      {showSettings && (
+        <SettingsModal
+          balances={balances}
+          onClose={() => setSettings(false)}
+          onChanged={fetchBalances}
           onToast={showToast}
         />
       )}
@@ -167,24 +191,49 @@ export default function FlightApp() {
             )}
           </div>
           {isLoggedIn && (
-            <button className="btn-ghost" onClick={() => setManager(true)}
-              style={{ height: 36, whiteSpace: 'nowrap' }}>
-              ⚙ Gerenciar viagens
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn-ghost" onClick={() => setManager(true)}
+                style={{ height: 36, whiteSpace: 'nowrap' }}>
+                ✈ Viagens
+              </button>
+              <button className="btn-ghost" onClick={() => setSettings(true)}
+                style={{ height: 36, whiteSpace: 'nowrap' }}>
+                ⚙ Pontos
+              </button>
+            </div>
           )}
+        </div>
+
+        {/* ── Abas Dinheiro / Milhas ── */}
+        <div style={{ marginBottom: 22 }}>
+          <div className="segmented">
+            <button className={tab === 'cash' ? 'active' : ''} onClick={() => setTab('cash')}>💵 Dinheiro</button>
+            <button className={tab === 'miles' ? 'active' : ''} onClick={() => setTab('miles')}>🎫 Milhas</button>
+          </div>
         </div>
 
         {/* ── Conteúdo da viagem ── */}
         {loadingTrips ? (
           <p style={styles.placeholder}>carregando viagens...</p>
         ) : trip ? (
-          <TripSection
-            key={trip.id}
-            trip={trip}
-            isLoggedIn={isLoggedIn}
-            isNarrow={isNarrow}
-            onToast={showToast}
-          />
+          tab === 'cash' ? (
+            <TripSection
+              key={trip.id}
+              trip={trip}
+              isLoggedIn={isLoggedIn}
+              isNarrow={isNarrow}
+              onToast={showToast}
+            />
+          ) : (
+            <MilesSection
+              key={trip.id}
+              trip={trip}
+              balances={balances}
+              isLoggedIn={isLoggedIn}
+              isNarrow={isNarrow}
+              onToast={showToast}
+            />
+          )
         ) : (
           <div style={styles.emptyState}>
             <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>

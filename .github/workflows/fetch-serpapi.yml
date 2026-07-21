@@ -2,7 +2,7 @@ name: Fetch Prices (SerpAPI)
 
 on:
   schedule:
-    - cron: "0 9 * * *"     # 09:00 UTC = 06:00 Brasília, diário
+    - cron: "0 9 * * *"      # 09:00 UTC = 06:00 Brasília, diário
   workflow_dispatch:
 
 jobs:
