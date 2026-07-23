@@ -2,15 +2,15 @@
 fetch_miami.py — monitoramento FLN ⇄ MIA via RapidAPI (Skyscanner).
 
 O endpoint só faz busca one-way, então buscamos cada perna separadamente,
-em datas flexíveis, filtrando itinerários com no máx. 1 escala (com fallback
-para a mais barata caso não haja opção de 1 escala), e combinamos a melhor
-ida com a melhor volta para o total ida-e-volta.
+em datas flexíveis. Salvamos TODAS as companhias (uma linha por cia), cada
+uma com seu melhor itinerário (preferindo ≤1 escala, com fallback).
 
-Salva 3 registros/dia na tabela prices (trip 9), source='auto':
-  outbound   → melhor FLN→MIA entre as datas de ida
-  return     → melhor MIA→FLN entre as datas de volta
-  round_trip → melhor ida + melhor volta
+Registros/dia na tabela prices (trip 9), source='auto':
+  outbound   → melhor FLN→MIA por companhia (entre as datas de ida)
+  return     → melhor MIA→FLN por companhia (entre as datas de volta)
+  round_trip → ida + volta por companhia (quando a cia tem as duas pernas)
 
+As observações trazem roteamento, escalas, horários, duração e data.
 Roda seg–sáb às 06h Brasília. 4 requisições/dia.
 """
 
@@ -60,11 +60,34 @@ def norm_airline(name: str) -> str:
         ("gol", "Gol"), ("latam", "Latam"), ("azul", "Azul"), ("american", "American"),
         ("delta", "Delta"), ("united", "United"), ("copa", "Copa"), ("avianca", "Avianca"),
         ("aeromexico", "Aeroméxico"), ("aeroméxico", "Aeroméxico"), ("sky", "Sky"),
-        ("jetsmart", "JetSmart"), ("arajet", "Arajet"),
+        ("jetsmart", "JetSmart"), ("arajet", "Arajet"), ("iberia", "Iberia"),
+        ("tap", "TAP"), ("air france", "Air France"), ("klm", "KLM"),
     ]:
         if key in n:
             return canon
     return name
+
+
+def carriers_label(r: dict) -> str:
+    names = dict.fromkeys(norm_airline(c) for c in r.get("carriers", []) if c)
+    return " + ".join(names) if names else "?"
+
+
+def hm(iso: str) -> str:
+    return iso[11:16] if len(iso) >= 16 else ""
+
+
+def dur_str(mins) -> str:
+    try:
+        mins = int(mins)
+    except (TypeError, ValueError):
+        return ""
+    return f"{mins // 60}h{mins % 60:02d}"
+
+
+def brdate(iso: str) -> str:
+    y, m, d = iso.split("-")
+    return f"{d}/{m}"
 
 
 def search_oneway(origin: str, dest: str, day: str) -> list[dict]:
@@ -86,36 +109,48 @@ def search_oneway(origin: str, dest: str, day: str) -> list[dict]:
     return data.get("results", [])
 
 
-def best_leg(origin: str, dest: str, days: list[str]) -> dict | None:
-    """Melhor itinerário (≤1 escala, senão o mais barato) entre as datas dadas."""
-    all_results: list[tuple[str, dict]] = []
-    for day in days:
-        for r in search_oneway(origin, dest, day):
-            legs = r.get("legs", [])
-            if legs and r.get("price_raw") is not None:
-                all_results.append((day, r))
-
-    if not all_results:
+def summarize(day: str, r: dict) -> dict | None:
+    if r.get("price_raw") is None or not r.get("legs"):
         return None
-
-    def stops_of(r): return (r.get("legs") or [{}])[0].get("stops", 99)
-
-    preferred = [(d, r) for d, r in all_results if stops_of(r) <= MAX_STOPS]
-    pool = preferred or all_results   # fallback: aceita mais escalas se não houver ≤1
-    day, r = min(pool, key=lambda x: x[1]["price_raw"])
-
     leg = r["legs"][0]
     segs = leg.get("segments", [])
-    routing = "→".join([segs[0]["from"]] + [s["to"] for s in segs]) if segs else f"{origin}→{dest}"
-    carriers = " + ".join(dict.fromkeys(norm_airline(c) for c in r.get("carriers", []))) or "?"
-
+    routing = "→".join([segs[0]["from"]] + [s["to"] for s in segs]) if segs else f"{ORIGIN}?{DEST}"
     return {
-        "price": float(r["price_raw"]),
-        "airline": carriers,
-        "stops": stops_of(r),
+        "airline": carriers_label(r),
+        "price":   float(r["price_raw"]),
+        "stops":   leg.get("stops", 99),
         "routing": routing,
-        "day": day,
+        "day":     day,
+        "dep":     hm(str(leg.get("dep", ""))),
+        "arr":     hm(str(leg.get("arr", ""))),
+        "dur":     dur_str(leg.get("dur_min")),
     }
+
+
+def note_of(s: dict) -> str:
+    parts = [brdate(s["day"]), s["routing"], f"{s['stops']} escala(s)"]
+    if s["dep"] and s["arr"]:
+        parts.append(f"{s['dep']}→{s['arr']}")
+    if s["dur"]:
+        parts.append(s["dur"])
+    return " · ".join(parts)
+
+
+def best_by_airline(origin: str, dest: str, days: list[str]) -> dict[str, dict]:
+    """Melhor itinerário por companhia (prefere ≤1 escala, senão o mais barato da cia)."""
+    groups: dict[str, list[dict]] = {}
+    for day in days:
+        for r in search_oneway(origin, dest, day):
+            s = summarize(day, r)
+            if s:
+                groups.setdefault(s["airline"], []).append(s)
+
+    best: dict[str, dict] = {}
+    for airline, items in groups.items():
+        preferred = [x for x in items if x["stops"] <= MAX_STOPS] or items
+        best[airline] = min(preferred, key=lambda x: x["price"])
+    log.info(f"    {len(best)} companhia(s): " + ", ".join(f"{a} R${s['price']:.0f}" for a, s in best.items()))
+    return best
 
 
 def upsert(trip_type: str, airline: str, price_out, price_back, notes: str) -> bool:
@@ -142,8 +177,6 @@ def upsert(trip_type: str, airline: str, price_out, price_back, notes: str) -> b
             timeout=15,
         )
         if resp.status_code in (200, 201):
-            total = (price_out or 0) + (price_back or 0)
-            log.info(f"    Salvo [{trip_type}] {airline}: R$ {total:,.2f}")
             return True
         log.error(f"    Supabase {resp.status_code}: {resp.text}")
         return False
@@ -152,40 +185,33 @@ def upsert(trip_type: str, airline: str, price_out, price_back, notes: str) -> b
         return False
 
 
-def brdate(iso: str) -> str:
-    y, m, d = iso.split("-")
-    return f"{d}/{m}"
-
-
 def main():
     log.info(f"=== Miami FLN⇄MIA — {date.today().isoformat()} ===")
 
     log.info("Ida (FLN→MIA):")
-    out = best_leg(ORIGIN, DEST, DEPART_DATES)
+    outs = best_by_airline(ORIGIN, DEST, DEPART_DATES)
     log.info("Volta (MIA→FLN):")
-    back = best_leg(DEST, ORIGIN, RETURN_DATES)
+    backs = best_by_airline(DEST, ORIGIN, RETURN_DATES)
 
-    if not out and not back:
-        log.error("Nenhuma perna encontrada.")
+    if not outs and not backs:
+        log.error("Nenhum resultado.")
         sys.exit(1)
 
     success = 0
 
-    if out:
-        note = f"{out['routing']} · {out['stops']} escala(s) · {brdate(out['day'])}"
-        if upsert("outbound", out["airline"], out["price"], None, note):
+    for airline, s in outs.items():
+        if upsert("outbound", airline, s["price"], None, note_of(s)):
             success += 1
 
-    if back:
-        note = f"{back['routing']} · {back['stops']} escala(s) · {brdate(back['day'])}"
-        if upsert("return", back["airline"], None, back["price"], note):
+    for airline, s in backs.items():
+        if upsert("return", airline, None, s["price"], note_of(s)):
             success += 1
 
-    if out and back:
-        air = out["airline"] if out["airline"] == back["airline"] else f"{out['airline']} / {back['airline']}"
-        note = (f"ida {out['routing']} {brdate(out['day'])} · "
-                f"volta {back['routing']} {brdate(back['day'])}")
-        if upsert("round_trip", air, out["price"], back["price"], note):
+    # ida-e-volta por companhia (cias presentes nas duas pernas)
+    for airline in outs.keys() & backs.keys():
+        o, b = outs[airline], backs[airline]
+        note = f"ida {brdate(o['day'])} {o['routing']} {o['dep']}→{o['arr']} · volta {brdate(b['day'])} {b['routing']} {b['dep']}→{b['arr']}"
+        if upsert("round_trip", airline, o["price"], b["price"], note):
             success += 1
 
     log.info(f"=== Concluído: {success} registro(s) salvo(s) ===")
