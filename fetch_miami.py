@@ -214,6 +214,17 @@ def main():
         if upsert("round_trip", airline, o["price"], b["price"], note):
             success += 1
 
+    # "Melhor combinado": ida mais barata + volta mais barata, misturando
+    # companhias (self-transfer) — bilhetes separados
+    if outs and backs:
+        o = min(outs.values(), key=lambda x: x["price"])
+        b = min(backs.values(), key=lambda x: x["price"])
+        note = (f"ida {o['airline']} {brdate(o['day'])} {o['routing']} {o['dep']}→{o['arr']} · "
+                f"volta {b['airline']} {brdate(b['day'])} {b['routing']} {b['dep']}→{b['arr']} "
+                f"· bilhetes separados")
+        if upsert("round_trip", "Melhor combinado", o["price"], b["price"], note):
+            success += 1
+
     log.info(f"=== Concluído: {success} registro(s) salvo(s) ===")
     if success == 0:
         sys.exit(1)
