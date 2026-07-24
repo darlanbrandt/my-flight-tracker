@@ -151,12 +151,19 @@ def fetch_serpapi(s: dict, trip: dict) -> list[dict] | None:
     if s.get("outbound_times"):
         params["outbound_times"] = s["outbound_times"]
 
-    try:
-        resp = httpx.get(SERPAPI_URL, params=params, timeout=45)
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        log.warning(f"    Erro na requisição: {e}")
+    # round_trip (type=1, deep_search) é bem mais lento — timeout maior + retry
+    attempts = 3 if flight_type == "1" else 2
+    timeout  = 90 if flight_type == "1" else 45
+    data = None
+    for attempt in range(1, attempts + 1):
+        try:
+            resp = httpx.get(SERPAPI_URL, params=params, timeout=timeout)
+            resp.raise_for_status()
+            data = resp.json()
+            break
+        except Exception as e:
+            log.warning(f"    Tentativa {attempt}/{attempts} falhou: {e}")
+    if data is None:
         _cache[key] = None
         return None
 

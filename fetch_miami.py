@@ -95,7 +95,7 @@ def search_oneway(origin: str, dest: str, day: str) -> list[dict]:
     try:
         resp = httpx.get(SKYSCANNER_URL, headers=SKYSCANNER_HEADERS, params={
             "origin": origin, "destination": dest, "date": day,
-            "limit": "30", "adults": "1", "currency": "BRL",
+            "limit": "50", "adults": "1", "currency": "BRL",
             "cabin": "economy", "market": "BR", "locale": "pt-BR",
         }, timeout=40)
         resp.raise_for_status()
@@ -212,6 +212,17 @@ def main():
         o, b = outs[airline], backs[airline]
         note = f"ida {brdate(o['day'])} {o['routing']} {o['dep']}→{o['arr']} · volta {brdate(b['day'])} {b['routing']} {b['dep']}→{b['arr']}"
         if upsert("round_trip", airline, o["price"], b["price"], note):
+            success += 1
+
+    # "Melhor combinado": ida mais barata + volta mais barata, misturando
+    # companhias (self-transfer) — bilhetes separados
+    if outs and backs:
+        o = min(outs.values(), key=lambda x: x["price"])
+        b = min(backs.values(), key=lambda x: x["price"])
+        note = (f"ida {o['airline']} {brdate(o['day'])} {o['routing']} {o['dep']}→{o['arr']} · "
+                f"volta {b['airline']} {brdate(b['day'])} {b['routing']} {b['dep']}→{b['arr']} "
+                f"· bilhetes separados")
+        if upsert("round_trip", "Melhor combinado", o["price"], b["price"], note):
             success += 1
 
     log.info(f"=== Concluído: {success} registro(s) salvo(s) ===")
