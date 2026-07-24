@@ -95,7 +95,7 @@ def search_oneway(origin: str, dest: str, day: str) -> list[dict]:
     try:
         resp = httpx.get(SKYSCANNER_URL, headers=SKYSCANNER_HEADERS, params={
             "origin": origin, "destination": dest, "date": day,
-            "limit": "30", "adults": "1", "currency": "BRL",
+            "limit": "50", "adults": "1", "currency": "BRL",
             "cabin": "economy", "market": "BR", "locale": "pt-BR",
         }, timeout=40)
         resp.raise_for_status()
