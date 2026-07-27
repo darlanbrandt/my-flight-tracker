@@ -59,6 +59,9 @@ DEPART_DATES = ["2027-01-24", "2027-01-25"]
 RETURN_DATES = ["2027-02-12", "2027-02-13"]
 MAX_STOPS    = 1
 
+# Dry-run: chama a API mas NÃO grava no Supabase (MIAMI_DRY_RUN=1)
+DRY_RUN = os.environ.get("MIAMI_DRY_RUN", "").lower() in ("1", "true", "yes")
+
 
 def norm_airline(name: str) -> str:
     n = name.lower()
@@ -142,6 +145,9 @@ def note_of(s: dict) -> str:
 
 
 def upsert(airline: str, price: float, notes: str) -> bool:
+    if DRY_RUN:
+        log.info(f"    [DRY-RUN] {airline}: R$ {price:,.2f} — {notes}")
+        return True
     payload = {
         "trip_id":      TRIP_ID,
         "date":         date.today().isoformat(),
@@ -173,7 +179,7 @@ def upsert(airline: str, price: float, notes: str) -> bool:
 
 
 def main():
-    log.info(f"=== Miami FLN⇄MIA — {date.today().isoformat()} ===")
+    log.info(f"=== Miami FLN⇄MIA — {date.today().isoformat()}" + (" [DRY-RUN]" if DRY_RUN else "") + " ===")
 
     # coleta todos os itinerários das combinações de datas
     all_summ: list[dict] = []
