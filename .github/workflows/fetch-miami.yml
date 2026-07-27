@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "0 9 * * 1-6"   # 09:00 UTC = 06:00 Brasília, seg–sáb
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Só testar (não grava no banco)"
+        type: boolean
+        default: true
 
 jobs:
   fetch:
@@ -25,7 +30,10 @@ jobs:
 
       - name: Buscar preços e salvar no Supabase
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+          SUPABASE_URL:  ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:  ${{ secrets.SUPABASE_KEY }}
+          RAPIDAPI_KEY:  ${{ secrets.RAPIDAPI_KEY }}
+          # workflow_dispatch: usa o toggle (padrão: só testar).
+          # schedule: input vazio → grava normalmente.
+          MIAMI_DRY_RUN: ${{ inputs.dry_run }}
         run: python fetch_miami.py
