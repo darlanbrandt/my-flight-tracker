@@ -1,17 +1,19 @@
 """
-fetch_miami.py — monitoramento FLN ⇄ MIA via RapidAPI (Skyscanner).
+fetch_miami.py — monitoramento FLN ⇄ MIA via RapidAPI
+(skyscanner-flights-travel-api, busca nativa de ida-e-volta).
 
-O endpoint só faz busca one-way, então buscamos cada perna separadamente,
-em datas flexíveis. Salvamos TODAS as companhias (uma linha por cia), cada
-uma com seu melhor itinerário (preferindo ≤1 escala, com fallback).
+Cada itinerário já traz os dois trechos (ida + volta) e o preço TOTAL do
+pacote. Buscamos as combinações de datas flexíveis, filtramos itinerários
+com ≤1 escala em cada trecho (fallback p/ o mais barato) e salvamos:
 
-Registros/dia na tabela prices (trip 9), source='auto':
-  outbound   → melhor FLN→MIA por companhia (entre as datas de ida)
-  return     → melhor MIA→FLN por companhia (entre as datas de volta)
-  round_trip → ida + volta por companhia (quando a cia tem as duas pernas)
+  round_trip por companhia  → melhor pacote de cada cia (ou combinação
+                              self-transfer que a API retornar)
+  round_trip "Melhor tarifa"→ o pacote mais barato do dia (linha estável)
 
-As observações trazem roteamento, escalas, horários, duração e data.
-Roda seg–sáb às 06h Brasília. 4 requisições/dia.
+Como a API só dá o preço total do pacote, o valor fica em price_out
+(price_back nulo) e a observação traz o detalhe de cada trecho.
+
+Roda seg–sáb às 06h Brasília. 4 requisições/dia (uma por combinação de datas).
 """
 
 import os
@@ -39,16 +41,20 @@ SUPABASE_HEADERS = {
     "Prefer": "resolution=merge-duplicates,return=minimal",
 }
 
-SKYSCANNER_URL     = "https://skyscanner-flights4.p.rapidapi.com/api/v1/search"
-SKYSCANNER_HEADERS = {
+API_HOST = "skyscanner-flights-travel-api.p.rapidapi.com"
+API_URL  = f"https://{API_HOST}/flights/searchFlights"
+API_HEADERS = {
     "x-rapidapi-key":  RAPIDAPI_KEY,
-    "x-rapidapi-host": "skyscanner-flights4.p.rapidapi.com",
+    "x-rapidapi-host": API_HOST,
 }
 
 # ── Configuração da viagem ────────────────────────────────────────────────────
-TRIP_ID      = 9
-ORIGIN       = "FLN"
-DEST         = "MIA"
+TRIP_ID     = 9
+ORIGIN_IATA = "FLN"
+DEST_IATA   = "MIA"
+ORIGIN_SKY, ORIGIN_ENTITY = "FLN", "95673806"    # aeroporto de Florianópolis
+DEST_SKY,   DEST_ENTITY   = "MIA", "95673821"    # aeroporto Internacional de Miami
+
 DEPART_DATES = ["2027-01-24", "2027-01-25"]
 RETURN_DATES = ["2027-02-12", "2027-02-13"]
 MAX_STOPS    = 1
@@ -62,14 +68,15 @@ def norm_airline(name: str) -> str:
         ("aeromexico", "Aeroméxico"), ("aeroméxico", "Aeroméxico"), ("sky", "Sky"),
         ("jetsmart", "JetSmart"), ("arajet", "Arajet"), ("iberia", "Iberia"),
         ("tap", "TAP"), ("air france", "Air France"), ("klm", "KLM"),
+        ("egyptair", "EgyptAir"), ("air canada", "Air Canada"),
     ]:
         if key in n:
             return canon
     return name
 
 
-def carriers_label(r: dict) -> str:
-    names = dict.fromkeys(norm_airline(c) for c in r.get("carriers", []) if c)
+def leg_carriers(leg: dict) -> str:
+    names = dict.fromkeys(norm_airline(c.get("name", "")) for c in leg.get("carriers", []) if c.get("name"))
     return " + ".join(names) if names else "?"
 
 
@@ -77,92 +84,73 @@ def hm(iso: str) -> str:
     return iso[11:16] if len(iso) >= 16 else ""
 
 
-def dur_str(mins) -> str:
-    try:
-        mins = int(mins)
-    except (TypeError, ValueError):
-        return ""
-    return f"{mins // 60}h{mins % 60:02d}"
+def dmy(iso: str) -> str:
+    return f"{iso[8:10]}/{iso[5:7]}" if len(iso) >= 10 else ""
 
 
-def brdate(iso: str) -> str:
-    y, m, d = iso.split("-")
-    return f"{d}/{m}"
+def search(depart: str, ret: str) -> list[dict]:
+    log.info(f"  [API] FLN→MIA {depart} ⇆ {ret}")
+    params = {
+        "originSkyId": ORIGIN_SKY, "originEntityId": ORIGIN_ENTITY,
+        "destinationSkyId": DEST_SKY, "destinationEntityId": DEST_ENTITY,
+        "date": depart, "returnDate": ret,
+        "adults": "1", "childrens": "0", "infants": "0",
+        "cabinClass": "economy",
+        "countryCode": "BR", "market": "BR", "currency": "BRL",
+    }
+    for attempt in range(1, 3):
+        try:
+            resp = httpx.get(API_URL, headers=API_HEADERS, params=params, timeout=60)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            log.warning(f"    Tentativa {attempt} falhou: {e}")
+            continue
+        its = data.get("itineraries") or []
+        log.info(f"    status={data.get('status')} · {len(its)} itinerário(s)")
+        if its:
+            return its
+    return []
 
 
-def search_oneway(origin: str, dest: str, day: str) -> list[dict]:
-    log.info(f"  [RapidAPI] {origin}→{dest} {day}")
-    try:
-        resp = httpx.get(SKYSCANNER_URL, headers=SKYSCANNER_HEADERS, params={
-            "origin": origin, "destination": dest, "date": day,
-            "limit": "50", "adults": "1", "currency": "BRL",
-            "cabin": "economy", "market": "BR", "locale": "pt-BR",
-        }, timeout=40)
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        log.warning(f"    Erro na requisição: {e}")
-        return []
-    if not data.get("success"):
-        log.warning(f"    API retornou erro: {str(data)[:300]}")
-        return []
-    return data.get("results", [])
-
-
-def summarize(day: str, r: dict) -> dict | None:
-    if r.get("price_raw") is None or not r.get("legs"):
+def summarize(it: dict) -> dict | None:
+    legs = it.get("legs", [])
+    price = (it.get("price") or {}).get("amount")
+    if len(legs) < 2 or price is None:
         return None
-    leg = r["legs"][0]
-    segs = leg.get("segments", [])
-    routing = "→".join([segs[0]["from"]] + [s["to"] for s in segs]) if segs else f"{ORIGIN}?{DEST}"
+    out, back = legs[0], legs[1]
+    out_air, back_air = leg_carriers(out), leg_carriers(back)
+    # rótulo da companhia: mesma nas duas pernas → uma; diferentes → "A + B"
+    airline = out_air if out_air == back_air else f"{out_air} / {back_air}"
     return {
-        "airline": carriers_label(r),
-        "price":   float(r["price_raw"]),
-        "stops":   leg.get("stops", 99),
-        "routing": routing,
-        "day":     day,
-        "dep":     hm(str(leg.get("dep", ""))),
-        "arr":     hm(str(leg.get("arr", ""))),
-        "dur":     dur_str(leg.get("dur_min")),
+        "airline": airline,
+        "price":   float(price),
+        "out":     out,
+        "back":    back,
+        "max_stops": max(out.get("stopCount", 9), back.get("stopCount", 9)),
     }
 
 
 def note_of(s: dict) -> str:
-    parts = [brdate(s["day"]), s["routing"], f"{s['stops']} escala(s)"]
-    if s["dep"] and s["arr"]:
-        parts.append(f"{s['dep']}→{s['arr']}")
-    if s["dur"]:
-        parts.append(s["dur"])
-    return " · ".join(parts)
+    o, b = s["out"], s["back"]
+    return (
+        f"ida {dmy(o.get('departure',''))} {o.get('origin')}→{o.get('destination')} "
+        f"{o.get('stopCount')} esc {hm(o.get('departure',''))}→{hm(o.get('arrival',''))} · "
+        f"volta {dmy(b.get('departure',''))} {b.get('origin')}→{b.get('destination')} "
+        f"{b.get('stopCount')} esc {hm(b.get('departure',''))}→{hm(b.get('arrival',''))} · pacote ida-e-volta"
+    )
 
 
-def best_by_airline(origin: str, dest: str, days: list[str]) -> dict[str, dict]:
-    """Melhor itinerário por companhia (prefere ≤1 escala, senão o mais barato da cia)."""
-    groups: dict[str, list[dict]] = {}
-    for day in days:
-        for r in search_oneway(origin, dest, day):
-            s = summarize(day, r)
-            if s:
-                groups.setdefault(s["airline"], []).append(s)
-
-    best: dict[str, dict] = {}
-    for airline, items in groups.items():
-        preferred = [x for x in items if x["stops"] <= MAX_STOPS] or items
-        best[airline] = min(preferred, key=lambda x: x["price"])
-    log.info(f"    {len(best)} companhia(s): " + ", ".join(f"{a} R${s['price']:.0f}" for a, s in best.items()))
-    return best
-
-
-def upsert(trip_type: str, airline: str, price_out, price_back, notes: str) -> bool:
+def upsert(airline: str, price: float, notes: str) -> bool:
     payload = {
         "trip_id":      TRIP_ID,
         "date":         date.today().isoformat(),
         "airline":      airline,
-        "origin":       ORIGIN,
-        "destination":  DEST,
-        "trip_type":    trip_type,
-        "price_out":    price_out,
-        "price_back":   price_back,
+        "origin":       ORIGIN_IATA,
+        "destination":  DEST_IATA,
+        "trip_type":    "round_trip",
+        "price_out":    price,     # total do pacote (API não separa por perna)
+        "price_back":   None,
         "source":       "auto",
         "payment_type": "cash",
         "program":      "",
@@ -171,8 +159,7 @@ def upsert(trip_type: str, airline: str, price_out, price_back, notes: str) -> b
     try:
         resp = httpx.post(
             f"{SUPABASE_URL}/rest/v1/prices",
-            headers=SUPABASE_HEADERS,
-            json=payload,
+            headers=SUPABASE_HEADERS, json=payload,
             params={"on_conflict": "trip_id,date,airline,origin,destination,trip_type,source,payment_type,program"},
             timeout=15,
         )
@@ -188,42 +175,41 @@ def upsert(trip_type: str, airline: str, price_out, price_back, notes: str) -> b
 def main():
     log.info(f"=== Miami FLN⇄MIA — {date.today().isoformat()} ===")
 
-    log.info("Ida (FLN→MIA):")
-    outs = best_by_airline(ORIGIN, DEST, DEPART_DATES)
-    log.info("Volta (MIA→FLN):")
-    backs = best_by_airline(DEST, ORIGIN, RETURN_DATES)
+    # coleta todos os itinerários das combinações de datas
+    all_summ: list[dict] = []
+    for depart in DEPART_DATES:
+        for ret in RETURN_DATES:
+            for it in search(depart, ret):
+                s = summarize(it)
+                if s:
+                    all_summ.append(s)
 
-    if not outs and not backs:
-        log.error("Nenhum resultado.")
+    if not all_summ:
+        log.error("Nenhum itinerário encontrado.")
         sys.exit(1)
 
+    # ordena preferindo ≤1 escala e, dentro disso, o mais barato
+    def rank(s: dict) -> tuple:
+        return (0 if s["max_stops"] <= MAX_STOPS else 1, s["price"])
+
+    # melhor por companhia
+    best: dict[str, dict] = {}
+    for s in all_summ:
+        cur = best.get(s["airline"])
+        if cur is None or rank(s) < rank(cur):
+            best[s["airline"]] = s
+
+    log.info(f"{len(best)} companhia(s): " + ", ".join(f"{a} R${s['price']:.0f}" for a, s in best.items()))
+
     success = 0
-
-    for airline, s in outs.items():
-        if upsert("outbound", airline, s["price"], None, note_of(s)):
+    for airline, s in best.items():
+        if upsert(airline, s["price"], note_of(s)):
             success += 1
 
-    for airline, s in backs.items():
-        if upsert("return", airline, None, s["price"], note_of(s)):
-            success += 1
-
-    # ida-e-volta por companhia (cias presentes nas duas pernas)
-    for airline in outs.keys() & backs.keys():
-        o, b = outs[airline], backs[airline]
-        note = f"ida {brdate(o['day'])} {o['routing']} {o['dep']}→{o['arr']} · volta {brdate(b['day'])} {b['routing']} {b['dep']}→{b['arr']}"
-        if upsert("round_trip", airline, o["price"], b["price"], note):
-            success += 1
-
-    # "Melhor combinado": ida mais barata + volta mais barata, misturando
-    # companhias (self-transfer) — bilhetes separados
-    if outs and backs:
-        o = min(outs.values(), key=lambda x: x["price"])
-        b = min(backs.values(), key=lambda x: x["price"])
-        note = (f"ida {o['airline']} {brdate(o['day'])} {o['routing']} {o['dep']}→{o['arr']} · "
-                f"volta {b['airline']} {brdate(b['day'])} {b['routing']} {b['dep']}→{b['arr']} "
-                f"· bilhetes separados")
-        if upsert("round_trip", "Melhor combinado", o["price"], b["price"], note):
-            success += 1
+    # linha estável com o pacote mais barato do dia (prefere ≤1 escala)
+    cheapest = min(all_summ, key=rank)
+    if upsert("Melhor tarifa", cheapest["price"], note_of(cheapest)):
+        success += 1
 
     log.info(f"=== Concluído: {success} registro(s) salvo(s) ===")
     if success == 0:
