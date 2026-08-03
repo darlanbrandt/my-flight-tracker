@@ -1,25 +1,16 @@
 """
-fetch.py — automação de preços via SerpAPI (v2.1).
+fetch.py — acompanhamento automático dinâmico via SerpAPI (v3).
 
-Lê as buscas ativas em tracked_searches (com as datas vindas de trips)
-e salva os resultados na tabela prices com source='auto'.
+Não usa mais tracked_searches. A tarefa lê a ÚNICA viagem marcada com
+auto_track=true (origem/destino/datas vêm da própria viagem) e faz três
+buscas no Google Flights, salvando o melhor preço POR COMPANHIA:
 
-Uso:
-  python fetch.py
+  outbound   → one-way origem→destino na data de ida
+  return     → one-way destino→origem na data de volta
+  round_trip → ida e volta (preço total do pacote, dividido 50/50)
 
-Cada trip_type gera uma busca no Google Flights:
-  outbound   → one-way (type=2), data de ida    da viagem
-  return     → one-way (type=2), data de volta   da viagem (sentido invertido)
-  round_trip → ida e volta (type=1), preço total do pacote
-
-Janelas de horário por busca:
-  outbound_times  filtra o horário de partida do voo pesquisado (ida da viagem,
-                  ou o voo one-way de volta) — ex.: "0,12"
-  return_times    filtra o horário de partida do trecho de volta no round_trip
-                  — ex.: "18,23"
-
-Buscas que resolvem para a mesma requisição (rota/data/tipo/janelas) são
-feitas uma única vez e reaproveitadas entre companhias.
+Se nenhuma viagem estiver marcada (ex: foi excluída), a tarefa não faz nada.
+Roda diariamente; grava em prices com source='auto'.
 """
 
 import os
@@ -50,29 +41,21 @@ SUPABASE_HEADERS = {
 
 SERPAPI_URL = "https://serpapi.com/search.json"
 
-# Cache de respostas por requisição — companhias na mesma rota reaproveitam
-_cache: dict[tuple, list | None] = {}
 
+def norm_airline(name: str) -> str:
+    n = name.lower()
+    for key, canon in [
+        ("gol", "Gol"), ("latam", "Latam"), ("azul", "Azul"), ("american", "American"),
+        ("delta", "Delta"), ("united", "United"), ("copa", "Copa"), ("avianca", "Avianca"),
+        ("aeromexico", "Aeroméxico"), ("aeroméxico", "Aeroméxico"), ("sky", "Sky"),
+        ("jetsmart", "JetSmart"), ("arajet", "Arajet"), ("iberia", "Iberia"),
+        ("tap", "TAP"), ("air france", "Air France"), ("klm", "KLM"),
+        ("egyptair", "EgyptAir"), ("air canada", "Air Canada"), ("lufthansa", "Lufthansa"),
+    ]:
+        if key in n:
+            return canon
+    return name
 
-# ── Config (Supabase) ─────────────────────────────────────────────────────────
-
-def load_searches() -> list[dict]:
-    resp = httpx.get(
-        f"{SUPABASE_URL}/rest/v1/tracked_searches",
-        headers=SUPABASE_HEADERS,
-        params={
-            "select": "*,trip:trips(*)",
-            "active": "is.true",
-            "api":    "eq.serpapi",
-            "order":  "trip_id,id",
-        },
-        timeout=15,
-    )
-    resp.raise_for_status()
-    return resp.json()
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def parse_price(raw) -> float | None:
     if raw is None:
@@ -86,50 +69,22 @@ def parse_price(raw) -> float | None:
         return None
 
 
-def leg_hour(leg: dict) -> int | None:
-    t = str(leg.get("departure_airport", {}).get("time", ""))
-    m = re.search(r"(\d{1,2}):\d{2}", t)
-    return int(m.group(1)) if m else None
+def load_auto_trip() -> dict | None:
+    resp = httpx.get(
+        f"{SUPABASE_URL}/rest/v1/trips",
+        headers=SUPABASE_HEADERS,
+        params={"select": "*", "auto_track": "is.true", "limit": "1"},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    rows = resp.json()
+    return rows[0] if rows else None
 
 
-def within_times(offer: dict, times: str | None) -> bool:
-    """Confere localmente o horário de partida (a API pode ignorar o parâmetro)."""
-    if not times:
-        return True
-    legs = offer.get("flights", [])
-    if not legs:
-        return True
-    hour = leg_hour(legs[0])
-    if hour is None:
-        return True
-    start, end = (int(x) for x in times.split(",")[:2])
-    return start <= hour <= end
-
-
-# ── SerpAPI ───────────────────────────────────────────────────────────────────
-
-def fetch_serpapi(s: dict, trip: dict) -> list[dict] | None:
-    trip_type = s["trip_type"]
-
-    if trip_type == "round_trip":
-        dep, arr, day, ret = s["origin"], s["destination"], trip["date_out"], trip["date_back"]
-        flight_type = "1"
-    elif trip_type == "return":
-        # voo só de volta: parte do destino de volta à origem, na data de volta
-        dep, arr, day, ret = s["destination"], s["origin"], trip["date_back"], None
-        flight_type = "2"
-    else:  # outbound
-        dep, arr, day, ret = s["origin"], s["destination"], trip["date_out"], None
-        flight_type = "2"
-
-    key = ("serpapi", dep, arr, day, ret, s["max_stops"],
-           s.get("outbound_times"), s.get("return_times"))
-    if key in _cache:
-        return _cache[key]
-
-    log.info(f"  [SerpAPI] {dep}→{arr} {day}"
-             + (f" ⇆ {ret}" if ret else "")
-             + f" (type={flight_type}, max_stops={s['max_stops']})")
+def serpapi_search(dep: str, arr: str, day: str, ret: str | None, max_stops: int) -> list[dict]:
+    flight_type = "1" if ret else "2"
+    label = f"{dep}→{arr} {day}" + (f" ⇆ {ret}" if ret else "")
+    log.info(f"  [SerpAPI] {label} (type={flight_type}, max_stops={max_stops})")
 
     params = {
         "engine":        "google_flights",
@@ -141,89 +96,54 @@ def fetch_serpapi(s: dict, trip: dict) -> list[dict] | None:
         "hl":            "pt",
         "gl":            "br",
         "deep_search":   "true",
-        "max_stops":     str(s["max_stops"]),
+        "max_stops":     str(max_stops),
         "api_key":       SERPAPI_KEY,
     }
-    if flight_type == "1":
+    if ret:
         params["return_date"] = ret
-        if s.get("return_times"):
-            params["return_times"] = s["return_times"]
-    if s.get("outbound_times"):
-        params["outbound_times"] = s["outbound_times"]
 
-    # round_trip (type=1, deep_search) é bem mais lento — timeout maior + retry
     attempts = 3 if flight_type == "1" else 2
     timeout  = 90 if flight_type == "1" else 45
-    data = None
     for attempt in range(1, attempts + 1):
         try:
             resp = httpx.get(SERPAPI_URL, params=params, timeout=timeout)
             resp.raise_for_status()
             data = resp.json()
-            break
+            if "error" in data:
+                log.warning(f"    Erro da API: {data['error']}")
+                return []
+            offers = data.get("best_flights", []) + data.get("other_flights", [])
+            log.info(f"    {len(offers)} oferta(s).")
+            return offers
         except Exception as e:
             log.warning(f"    Tentativa {attempt}/{attempts} falhou: {e}")
-    if data is None:
-        _cache[key] = None
-        return None
-
-    if "error" in data:
-        log.warning(f"    Erro da API: {data['error']}")
-        _cache[key] = None
-        return None
-
-    offers = data.get("best_flights", []) + data.get("other_flights", [])
-    log.info(f"    {len(offers)} oferta(s).")
-    _cache[key] = offers
-    return offers
+    return []
 
 
-def best_price(offers: list[dict], s: dict) -> float | None:
-    match = s["airline_match"].lower()
-    nonstop_only = s["max_stops"] == 0
-
-    def is_target(o: dict) -> bool:
+def best_by_airline(offers: list[dict], nonstop: bool) -> dict[str, float]:
+    groups: dict[str, float] = {}
+    for o in offers:
         legs = o.get("flights", [])
-        if nonstop_only and len(legs) != 1:      # voo direto = 1 segmento na ida
-            return False
-        return any(match in leg.get("airline", "").lower() for leg in legs)
-
-    target = [o for o in offers if is_target(o)]
-    valid  = [o for o in target if within_times(o, s.get("outbound_times"))]
-
-    dropped = len(target) - len(valid)
-    if dropped:
-        log.info(f"    {dropped} oferta(s) fora da janela de horário.")
-
-    prices = [p for p in (parse_price(o.get("price")) for o in valid) if p is not None]
-    if not prices:
-        if target:
-            log.warning(f"    '{s['airline_match']}' encontrada mas sem oferta válida.")
-        else:
-            found = {leg.get("airline", "?") for o in offers for leg in o.get("flights", [])}
-            log.warning(f"    '{s['airline_match']}' não encontrada. Disponíveis: {found}")
-        return None
-    return min(prices)
+        if nonstop and len(legs) != 1:      # voo direto = 1 segmento
+            continue
+        price = parse_price(o.get("price"))
+        if price is None:
+            continue
+        names = dict.fromkeys(norm_airline(l.get("airline", "")) for l in legs if l.get("airline"))
+        label = " + ".join(names) if names else "?"
+        if label not in groups or price < groups[label]:
+            groups[label] = price
+    return groups
 
 
-# ── Persistência ──────────────────────────────────────────────────────────────
-
-def upsert(s: dict, price: float) -> bool:
-    trip_type = s["trip_type"]
-    if trip_type == "round_trip":
-        half = round(price / 2, 2)
-        price_out, price_back = half, round(price - half, 2)
-    elif trip_type == "outbound":
-        price_out, price_back = price, None
-    else:
-        price_out, price_back = None, price
-
+def upsert(trip_id: int, airline: str, origin: str, destination: str,
+           trip_type: str, price_out, price_back) -> bool:
     payload = {
-        "trip_id":      s["trip_id"],
+        "trip_id":      trip_id,
         "date":         date.today().isoformat(),
-        "airline":      s["airline"],
-        "origin":       s["origin"],
-        "destination":  s["destination"],
+        "airline":      airline,
+        "origin":       origin,
+        "destination":  destination,
         "trip_type":    trip_type,
         "price_out":    price_out,
         "price_back":   price_back,
@@ -231,17 +151,14 @@ def upsert(s: dict, price: float) -> bool:
         "payment_type": "cash",
         "program":      "",
     }
-
     try:
         resp = httpx.post(
             f"{SUPABASE_URL}/rest/v1/prices",
-            headers=SUPABASE_HEADERS,
-            json=payload,
+            headers=SUPABASE_HEADERS, json=payload,
             params={"on_conflict": "trip_id,date,airline,origin,destination,trip_type,source,payment_type,program"},
             timeout=15,
         )
         if resp.status_code in (200, 201):
-            log.info(f"    Salvo {s['airline']} [{trip_type}]: R$ {price:,.2f}")
             return True
         log.error(f"    Supabase {resp.status_code}: {resp.text}")
         return False
@@ -250,41 +167,55 @@ def upsert(s: dict, price: float) -> bool:
         return False
 
 
-# ── main ──────────────────────────────────────────────────────────────────────
-
 def main():
-    log.info(f"=== fetch — {date.today().isoformat()} ===")
+    log.info(f"=== fetch auto — {date.today().isoformat()} ===")
 
     try:
-        searches = load_searches()
+        trip = load_auto_trip()
     except Exception as e:
-        log.error(f"Erro ao carregar tracked_searches: {e}")
+        log.error(f"Erro ao carregar viagem: {e}")
         sys.exit(1)
 
-    if not searches:
-        log.warning("Nenhuma busca ativa encontrada.")
+    if not trip:
+        log.info("Nenhuma viagem com acompanhamento automático ativo. Nada a fazer.")
         return
 
-    log.info(f"{len(searches)} busca(s) ativa(s).")
-    success, failed = 0, 0
+    origin = (trip.get("track_origin") or "").upper()
+    dest   = (trip.get("track_destination") or "").upper()
+    if not origin or not dest:
+        log.warning(f"Viagem '{trip['name']}' marcada mas sem origem/destino. Pulando.")
+        return
 
-    for s in searches:
-        trip = s["trip"]
-        log.info(f"[{trip['name']} · {trip['period']}] {s['airline']} "
-                 f"{s['origin']}↔{s['destination']} ({s['trip_type']})")
-        offers = fetch_serpapi(s, trip)
-        price = best_price(offers, s) if offers else None
-        if price is None:
-            failed += 1
-            continue
-        if upsert(s, price):
+    nonstop   = trip.get("track_nonstop", True)
+    max_stops = 0 if nonstop else 2
+    do, db    = trip["date_out"], trip["date_back"]
+    tid       = trip["id"]
+
+    log.info(f"Viagem: {trip['name']} · {origin}⇄{dest} · {do} → {db} · "
+             f"{'diretos' if nonstop else 'com escalas'}")
+
+    success = 0
+
+    # ida (one-way)
+    for airline, price in best_by_airline(serpapi_search(origin, dest, do, None, max_stops), nonstop).items():
+        if upsert(tid, airline, origin, dest, "outbound", price, None):
             success += 1
-        else:
-            failed += 1
+            log.info(f"    Salvo {airline} [outbound]: R$ {price:,.2f}")
 
-    log.info(f"=== Concluído: {success} salvos, {failed} falhas ===")
-    if failed > 0 and success == 0:
-        sys.exit(1)
+    # volta (one-way) — origin/destination no banco seguem a direção da ida
+    for airline, price in best_by_airline(serpapi_search(dest, origin, db, None, max_stops), nonstop).items():
+        if upsert(tid, airline, origin, dest, "return", None, price):
+            success += 1
+            log.info(f"    Salvo {airline} [return]: R$ {price:,.2f}")
+
+    # ida e volta (pacote) — total dividido 50/50 entre as pernas
+    for airline, price in best_by_airline(serpapi_search(origin, dest, do, db, max_stops), nonstop).items():
+        half = round(price / 2, 2)
+        if upsert(tid, airline, origin, dest, "round_trip", half, round(price - half, 2)):
+            success += 1
+            log.info(f"    Salvo {airline} [round_trip]: R$ {price:,.2f}")
+
+    log.info(f"=== Concluído: {success} registro(s) salvo(s) ===")
 
 
 if __name__ == "__main__":
