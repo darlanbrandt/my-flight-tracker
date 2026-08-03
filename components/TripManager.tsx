@@ -22,6 +22,10 @@ export default function TripManager({ trips, onClose, onChanged, onToast }: Prop
   const [trackOrigin, setTrackOrigin] = useState('')
   const [trackDest, setTrackDest]     = useState('')
   const [trackNonstop, setTrackNonstop] = useState(true)
+  const [outFrom, setOutFrom]   = useState('')
+  const [outTo, setOutTo]       = useState('')
+  const [retFrom, setRetFrom]   = useState('')
+  const [retTo, setRetTo]       = useState('')
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
 
@@ -50,7 +54,15 @@ export default function TripManager({ trips, onClose, onChanged, onToast }: Prop
         setError('Para o acompanhamento automático, informe origem e destino (códigos IATA de 3 letras).')
         return
       }
+      const pairs: [string, string, string][] = [[outFrom, outTo, 'ida'], [retFrom, retTo, 'volta']]
+      for (const [a, b, lbl] of pairs) {
+        if ((a === '') !== (b === '')) { setError(`Horário da ${lbl}: preencha "de" e "até" (ou deixe ambos vazios).`); return }
+        if (a !== '' && (Number(a) < 0 || Number(b) > 24 || Number(a) >= Number(b))) {
+          setError(`Horário da ${lbl} inválido (use 0–24, "de" menor que "até").`); return
+        }
+      }
     }
+    const win = (a: string, b: string) => (a !== '' && b !== '' ? `${Number(a)},${Number(b)}` : null)
 
     setSaving(true)
     const payload: TripInsert = {
@@ -63,6 +75,8 @@ export default function TripManager({ trips, onClose, onChanged, onToast }: Prop
       track_origin:      autoTrack ? trackOrigin.toUpperCase() : null,
       track_destination: autoTrack ? trackDest.toUpperCase()   : null,
       track_nonstop:     trackNonstop,
+      track_outbound_times: autoTrack ? win(outFrom, outTo) : null,
+      track_return_times:   autoTrack ? win(retFrom, retTo) : null,
     }
     const { error: err } = await supabase.from('trips').insert(payload)
     setSaving(false)
@@ -71,6 +85,7 @@ export default function TripManager({ trips, onClose, onChanged, onToast }: Prop
 
     setName(''); setPeriod(''); setDateOut(''); setDateBack('')
     setAutoTrack(false); setTrackOrigin(''); setTrackDest(''); setTrackNonstop(true)
+    setOutFrom(''); setOutTo(''); setRetFrom(''); setRetTo('')
     onToast('Viagem criada!', 'success')
     onChanged()
   }
@@ -195,8 +210,7 @@ export default function TripManager({ trips, onClose, onChanged, onToast }: Prop
           {/* acompanhamento automático (SerpAPI) */}
           <div style={styles.autoBox}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer' }}>
-              <input type="checkbox" checked={autoTrack} onChange={e => setAutoTrack(e.target.checked)}
-                style={{ width: 16, height: 16 }} />
+              <input type="checkbox" checked={autoTrack} onChange={e => setAutoTrack(e.target.checked)} />
               Acompanhar automaticamente todo dia (SerpAPI)
             </label>
             {autoTrack && (
@@ -219,12 +233,34 @@ export default function TripManager({ trips, onClose, onChanged, onToast }: Prop
                   </label>
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text2)', marginTop: 8, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={trackNonstop} onChange={e => setTrackNonstop(e.target.checked)}
-                    style={{ width: 15, height: 15 }} />
+                  <input type="checkbox" checked={trackNonstop} onChange={e => setTrackNonstop(e.target.checked)} />
                   Somente voos diretos
                 </label>
-                <p style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>
-                  Busca ida, volta e ida-e-volta pelas datas acima, todas as companhias. Começa no próximo ciclo (~6h).
+
+                <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <span style={styles.hourLabel}>Saída da ida (h) — opcional</span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input className="mono-input" type="number" min={0} max={24} placeholder="de"
+                        value={outFrom} onChange={e => setOutFrom(e.target.value)} />
+                      <input className="mono-input" type="number" min={0} max={24} placeholder="até"
+                        value={outTo} onChange={e => setOutTo(e.target.value)} />
+                    </div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <span style={styles.hourLabel}>Saída da volta (h) — opcional</span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input className="mono-input" type="number" min={0} max={24} placeholder="de"
+                        value={retFrom} onChange={e => setRetFrom(e.target.value)} />
+                      <input className="mono-input" type="number" min={0} max={24} placeholder="até"
+                        value={retTo} onChange={e => setRetTo(e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+
+                <p style={{ fontSize: 11, color: 'var(--text3)', marginTop: 8 }}>
+                  Busca ida, volta e ida-e-volta pelas datas acima, todas as companhias.
+                  Ex: ida 6–12h, volta 12–18h. Começa no próximo ciclo (~6h).
                 </p>
               </>
             )}
@@ -371,6 +407,13 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 12,
     padding: '12px 14px',
     background: 'var(--surface2)',
+  },
+  hourLabel: {
+    display: 'block',
+    fontSize: 11,
+    fontWeight: 600,
+    color: 'var(--text3)',
+    marginBottom: 4,
   },
   formGrid: {
     display: 'grid',

@@ -20,6 +20,8 @@ export type Trip = {
   track_origin: string | null
   track_destination: string | null
   track_nonstop: boolean
+  track_outbound_times: string | null
+  track_return_times: string | null
   created_at: string
 }
 
@@ -33,6 +35,8 @@ export type TripInsert = {
   track_origin?: string | null
   track_destination?: string | null
   track_nonstop?: boolean
+  track_outbound_times?: string | null
+  track_return_times?: string | null
 }
 
 export const KIND_LABELS: Record<TripKind, string> = {
