@@ -57,6 +57,26 @@ def norm_airline(name: str) -> str:
     return name
 
 
+def leg_hour(leg: dict) -> int | None:
+    t = str(leg.get("departure_airport", {}).get("time", ""))
+    m = re.search(r"(\d{1,2}):\d{2}", t)
+    return int(m.group(1)) if m else None
+
+
+def within_times(offer: dict, times: str | None) -> bool:
+    """Confere localmente o horário de partida (a API pode ignorar o parâmetro)."""
+    if not times:
+        return True
+    legs = offer.get("flights", [])
+    if not legs:
+        return True
+    hour = leg_hour(legs[0])
+    if hour is None:
+        return True
+    start, end = (int(x) for x in times.split(",")[:2])
+    return start <= hour <= end
+
+
 def parse_price(raw) -> float | None:
     if raw is None:
         return None
@@ -81,7 +101,8 @@ def load_auto_trip() -> dict | None:
     return rows[0] if rows else None
 
 
-def serpapi_search(dep: str, arr: str, day: str, ret: str | None, max_stops: int) -> list[dict]:
+def serpapi_search(dep: str, arr: str, day: str, ret: str | None, max_stops: int,
+                   out_times: str | None = None, ret_times: str | None = None) -> list[dict]:
     flight_type = "1" if ret else "2"
     label = f"{dep}→{arr} {day}" + (f" ⇆ {ret}" if ret else "")
     log.info(f"  [SerpAPI] {label} (type={flight_type}, max_stops={max_stops})")
@@ -101,6 +122,10 @@ def serpapi_search(dep: str, arr: str, day: str, ret: str | None, max_stops: int
     }
     if ret:
         params["return_date"] = ret
+    if out_times:
+        params["outbound_times"] = out_times
+    if ret and ret_times:
+        params["return_times"] = ret_times
 
     attempts = 3 if flight_type == "1" else 2
     timeout  = 90 if flight_type == "1" else 45
@@ -120,11 +145,13 @@ def serpapi_search(dep: str, arr: str, day: str, ret: str | None, max_stops: int
     return []
 
 
-def best_by_airline(offers: list[dict], nonstop: bool) -> dict[str, float]:
+def best_by_airline(offers: list[dict], nonstop: bool, local_times: str | None = None) -> dict[str, float]:
     groups: dict[str, float] = {}
     for o in offers:
         legs = o.get("flights", [])
         if nonstop and len(legs) != 1:      # voo direto = 1 segmento
+            continue
+        if not within_times(o, local_times):
             continue
         price = parse_price(o.get("price"))
         if price is None:
@@ -190,26 +217,33 @@ def main():
     max_stops = 0 if nonstop else 2
     do, db    = trip["date_out"], trip["date_back"]
     tid       = trip["id"]
+    out_win   = trip.get("track_outbound_times") or None   # ex: '6,12' (saída da ida)
+    ret_win   = trip.get("track_return_times") or None     # ex: '12,18' (saída da volta)
 
     log.info(f"Viagem: {trip['name']} · {origin}⇄{dest} · {do} → {db} · "
-             f"{'diretos' if nonstop else 'com escalas'}")
+             f"{'diretos' if nonstop else 'com escalas'}"
+             + (f" · ida {out_win}h" if out_win else "")
+             + (f" · volta {ret_win}h" if ret_win else ""))
 
     success = 0
 
-    # ida (one-way)
-    for airline, price in best_by_airline(serpapi_search(origin, dest, do, None, max_stops), nonstop).items():
+    # ida (one-way) — filtra pela janela de saída da ida
+    offers = serpapi_search(origin, dest, do, None, max_stops, out_times=out_win)
+    for airline, price in best_by_airline(offers, nonstop, out_win).items():
         if upsert(tid, airline, origin, dest, "outbound", price, None):
             success += 1
             log.info(f"    Salvo {airline} [outbound]: R$ {price:,.2f}")
 
-    # volta (one-way) — origin/destination no banco seguem a direção da ida
-    for airline, price in best_by_airline(serpapi_search(dest, origin, db, None, max_stops), nonstop).items():
+    # volta (one-way) — a "saída" desse voo é a janela da volta
+    offers = serpapi_search(dest, origin, db, None, max_stops, out_times=ret_win)
+    for airline, price in best_by_airline(offers, nonstop, ret_win).items():
         if upsert(tid, airline, origin, dest, "return", None, price):
             success += 1
             log.info(f"    Salvo {airline} [return]: R$ {price:,.2f}")
 
-    # ida e volta (pacote) — total dividido 50/50 entre as pernas
-    for airline, price in best_by_airline(serpapi_search(origin, dest, do, db, max_stops), nonstop).items():
+    # ida e volta (pacote) — janelas nos dois trechos; total dividido 50/50
+    offers = serpapi_search(origin, dest, do, db, max_stops, out_times=out_win, ret_times=ret_win)
+    for airline, price in best_by_airline(offers, nonstop, out_win).items():
         half = round(price / 2, 2)
         if upsert(tid, airline, origin, dest, "round_trip", half, round(price - half, 2)):
             success += 1
