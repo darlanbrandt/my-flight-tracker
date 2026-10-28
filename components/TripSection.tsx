@@ -63,9 +63,10 @@ export default function TripSection({ trip, isLoggedIn, isNarrow, onToast }: Pro
   const usedTripTypes = TRIP_TYPES.filter(t => data.some(r => r.trip_type === t))
   const showTripTypeSelector = usedTripTypes.length > 1 || trip.kind === 'domestica'
 
-  // gráfico e cards priorizam registros manuais; se a viagem só tem
-  // automáticos (ex: acompanhamento novo), usam os automáticos como base
-  const sourceMode: 'manual' | 'auto' = data.some(r => r.source === 'manual') ? 'manual' : 'auto'
+  // gráfico e cards priorizam manual; se não há manual para o trecho/rota
+  // em exibição, usam o automático (ex: acompanhamento automático novo)
+  const sourceMode: 'manual' | 'auto' =
+    routeData.some(r => r.trip_type === tripType && r.source === 'manual') ? 'manual' : 'auto'
 
   return (
     <div>
