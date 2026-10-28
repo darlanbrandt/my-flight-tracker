@@ -1,0 +1,40 @@
+name: Fetch Europa (SerpAPI)
+
+on:
+  schedule:
+    - cron: "0 9 * * *"    # 09:00 UTC = 06:00 Brasília, diário
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Só testar (não grava no banco)"
+        type: boolean
+        default: true
+
+jobs:
+  fetch:
+    name: Buscar GRU⇄Europa (LATAM, diretos)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Buscar preços e salvar no Supabase
+        env:
+          SUPABASE_URL:   ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:   ${{ secrets.SUPABASE_KEY }}
+          SERPAPI_KEY:    ${{ secrets.SERPAPI_KEY }}
+          # workflow_dispatch: toggle (padrão: só testar). schedule: grava.
+          EUROPA_DRY_RUN: ${{ inputs.dry_run }}
+        run: python fetch_europa.py
