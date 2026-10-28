@@ -11,8 +11,9 @@ Rotas (ida → volta):
   GRU→MAD  23/05/2027 → 08/06/2027
   GRU→LIS  23/05/2027 → 08/06/2027
   GRU→BRU  24/05/2027 → 08/06/2027   (segunda-feira)
+  FLN→LIS  24/05/2027 → 09/06/2027   (TAP direto, seg/qua/sáb)
 
-4 requisições/dia (uma por destino). Roda diariamente de manhã.
+5 requisições/dia (uma por rota). Roda diariamente de manhã.
 Dry-run (não grava): EUROPA_DRY_RUN=1.
 """
 
@@ -48,21 +49,22 @@ SERPAPI_URL = "https://serpapi.com/search.json"
 
 # ── Configuração da viagem ────────────────────────────────────────────────────
 TRIP_ID = 12
-ORIGIN  = "GRU"
 
 
 @dataclass
 class Route:
+    origin: str
     destination: str
     date_out: str
     date_back: str
 
 
 ROUTES: list[Route] = [
-    Route("BCN", "2027-05-23", "2027-06-08"),
-    Route("MAD", "2027-05-23", "2027-06-08"),
-    Route("LIS", "2027-05-23", "2027-06-08"),
-    Route("BRU", "2027-05-24", "2027-06-08"),
+    Route("GRU", "BCN", "2027-05-23", "2027-06-08"),
+    Route("GRU", "MAD", "2027-05-23", "2027-06-08"),
+    Route("GRU", "LIS", "2027-05-23", "2027-06-08"),
+    Route("GRU", "BRU", "2027-05-24", "2027-06-08"),
+    Route("FLN", "LIS", "2027-05-24", "2027-06-09"),   # TAP direto (seg/qua/sáb)
 ]
 
 
@@ -93,10 +95,10 @@ def parse_price(raw) -> float | None:
 
 
 def search_round_trip(route: Route) -> list[dict]:
-    log.info(f"  [SerpAPI] {ORIGIN}→{route.destination} {route.date_out} ⇆ {route.date_back} (direto)")
+    log.info(f"  [SerpAPI] {route.origin}→{route.destination} {route.date_out} ⇆ {route.date_back} (direto)")
     params = {
         "engine":        "google_flights",
-        "departure_id":  ORIGIN,
+        "departure_id":  route.origin,
         "arrival_id":    route.destination,
         "outbound_date": route.date_out,
         "return_date":   route.date_back,
@@ -141,16 +143,16 @@ def best_by_airline(offers: list[dict]) -> dict[str, float]:
     return groups
 
 
-def upsert(destination: str, airline: str, price: float) -> bool:
+def upsert(origin: str, destination: str, airline: str, price: float) -> bool:
     half = round(price / 2, 2)
     if DRY_RUN:
-        log.info(f"    [DRY-RUN] {destination} {airline}: R$ {price:,.2f}")
+        log.info(f"    [DRY-RUN] {origin}→{destination} {airline}: R$ {price:,.2f}")
         return True
     payload = {
         "trip_id":      TRIP_ID,
         "date":         date.today().isoformat(),
         "airline":      airline,
-        "origin":       ORIGIN,
+        "origin":       origin,
         "destination":  destination,
         "trip_type":    "round_trip",
         "price_out":    half,
@@ -182,11 +184,11 @@ def main():
     for route in ROUTES:
         best = best_by_airline(search_round_trip(route))
         if not best:
-            log.info(f"  {route.destination}: nenhum voo direto encontrado.")
+            log.info(f"  {route.origin}→{route.destination}: nenhum voo direto encontrado.")
             continue
-        log.info(f"  {route.destination}: " + ", ".join(f"{a} R${p:.0f}" for a, p in sorted(best.items(), key=lambda x: x[1])))
+        log.info(f"  {route.origin}→{route.destination}: " + ", ".join(f"{a} R${p:.0f}" for a, p in sorted(best.items(), key=lambda x: x[1])))
         for airline, price in best.items():
-            if upsert(route.destination, airline, price):
+            if upsert(route.origin, route.destination, airline, price):
                 success += 1
 
     log.info(f"=== Concluído: {success} registro(s) salvo(s) ===")
