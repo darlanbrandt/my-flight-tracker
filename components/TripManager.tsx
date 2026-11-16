@@ -97,6 +97,13 @@ export default function TripManager({ trips, onClose, onChanged, onToast }: Prop
     onChanged()
   }
 
+  async function toggleHidden(trip: Trip) {
+    const { error: err } = await supabase.from('trips').update({ hidden: !trip.hidden }).eq('id', trip.id)
+    if (err) { onToast('Erro ao atualizar visibilidade.', 'error'); return }
+    onToast(trip.hidden ? `"${trip.name}" reexibida.` : `"${trip.name}" ocultada.`, 'success')
+    onChanged()
+  }
+
   async function handleDelete() {
     if (!deleteTarget || confirmText !== deleteTarget.name) return
     setDeleting(true)
@@ -146,6 +153,11 @@ export default function TripManager({ trips, onClose, onChanged, onToast }: Prop
                       ⏱ auto {t.track_origin}→{t.track_destination}
                     </span>
                   )}
+                  {t.hidden && (
+                    <span style={{ ...styles.kindBadge, background: 'var(--surface2)', color: 'var(--text3)' }}>
+                      👁 oculta
+                    </span>
+                  )}
                 </div>
                 <p style={styles.tripDates}>
                   {format(parseISO(t.date_out), 'dd/MM/yyyy')} → {format(parseISO(t.date_back), 'dd/MM/yyyy')}
@@ -162,6 +174,14 @@ export default function TripManager({ trips, onClose, onChanged, onToast }: Prop
                     Desativar auto
                   </button>
                 )}
+                <button
+                  className="btn-ghost"
+                  style={{ padding: '6px 12px', fontSize: 12 }}
+                  onClick={() => toggleHidden(t)}
+                  title={t.hidden ? 'Reexibir no seletor' : 'Ocultar do seletor (mantém o histórico)'}
+                >
+                  {t.hidden ? 'Mostrar' : 'Ocultar'}
+                </button>
                 <button
                   className="btn-danger"
                   style={{ padding: '6px 12px', fontSize: 12 }}

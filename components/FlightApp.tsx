@@ -56,12 +56,13 @@ export default function FlightApp() {
       .order('date_out', { ascending: true })
     const list = rows ?? []
     setTrips(list)
+    const visible = list.filter(t => !t.hidden)
     setTripId(prev => {
-      if (prev !== null && list.some(t => t.id === prev)) return prev
+      if (prev !== null && visible.some(t => t.id === prev)) return prev
       const saved = Number(localStorage.getItem('selectedTripId'))
-      if (saved && list.some(t => t.id === saved)) return saved
-      // sem seleção salva: cai na primeira viagem cadastrada (menor id)
-      return list.length ? Math.min(...list.map(t => t.id)) : null
+      if (saved && visible.some(t => t.id === saved)) return saved
+      // sem seleção salva: cai na primeira viagem visível (menor id)
+      return visible.length ? Math.min(...visible.map(t => t.id)) : null
     })
     setLoading(false)
   }, [])
@@ -100,7 +101,8 @@ export default function FlightApp() {
   }, [])
 
   const isLoggedIn = !!user
-  const trip = trips.find(t => t.id === tripId) ?? null
+  const visibleTrips = trips.filter(t => !t.hidden)
+  const trip = visibleTrips.find(t => t.id === tripId) ?? null
 
   if (showLogin && !isLoggedIn) {
     return <LoginForm onCancel={() => setShowLogin(false)} />
@@ -174,13 +176,13 @@ export default function FlightApp() {
         <div style={styles.tripBar}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' as const }}>
             <span style={styles.tripLabel}>Viagem:</span>
-            {trips.length > 0 && (
+            {visibleTrips.length > 0 && (
               <select
                 value={tripId ?? ''}
                 onChange={e => selectTrip(Number(e.target.value))}
                 style={{ minWidth: 220, fontWeight: 600 }}
               >
-                {trips.map(t => (
+                {visibleTrips.map(t => (
                   <option key={t.id} value={t.id}>
                     {t.name} · {t.period} ({KIND_LABELS[t.kind]})
                   </option>
