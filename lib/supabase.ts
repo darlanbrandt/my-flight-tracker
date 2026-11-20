@@ -22,6 +22,7 @@ export type Trip = {
   track_nonstop: boolean
   track_outbound_times: string | null
   track_return_times: string | null
+  hidden: boolean
   created_at: string
 }
 
